@@ -1,0 +1,21 @@
+{
+  "name": "gym-management-system",
+  "version": "1.0.0",
+  "description": "Advanced Gym Management System with Accounting",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm run dev",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "migrate": "cd backend && npx prisma migrate dev",
+    "seed": "cd backend && node scripts/seed.js"
+  },
+  "keywords": ["gym", "management", "accounting"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

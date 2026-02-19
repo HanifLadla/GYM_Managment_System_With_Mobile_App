@@ -1,0 +1,573 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model account {
+  id          String        @id
+  accountName String
+  type        account_type
+  balance     Decimal       @default(0.000000000000000000000000000000)
+  description String?
+  createdAt   DateTime      @default(now())
+  transaction transaction[]
+}
+
+model attendance {
+  id           String    @id
+  memberId     String
+  cardId       String
+  checkInTime  DateTime  @default(now())
+  checkOutTime DateTime?
+  date         DateTime  @default(now())
+  trainerId    String?
+  member       member    @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "Attendance_memberId_fkey")
+  trainer      trainer?  @relation(fields: [trainerId], references: [id], map: "Attendance_trainerId_fkey")
+
+  @@index([cardId], map: "Attendance_cardId_idx")
+  @@index([date], map: "Attendance_date_idx")
+  @@index([memberId], map: "Attendance_memberId_idx")
+  @@index([trainerId], map: "Attendance_trainerId_fkey")
+}
+
+model auditlog {
+  id        String   @id
+  userId    String
+  action    String
+  details   String?  @db.LongText
+  timestamp DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "AuditLog_userId_fkey")
+
+  @@index([timestamp], map: "AuditLog_timestamp_idx")
+  @@index([userId], map: "AuditLog_userId_idx")
+}
+
+model card {
+  id         String   @id
+  memberId   String
+  cardNumber String   @unique(map: "Card_cardNumber_key")
+  qrCodeUrl  String   @db.Text
+  issueDate  DateTime @default(now())
+  member     member   @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "Card_memberId_fkey")
+
+  @@index([cardNumber], map: "Card_cardNumber_idx")
+  @@index([memberId], map: "Card_memberId_idx")
+}
+
+/// This model has been renamed to 'Renamedclass' during introspection, because the original name 'class' is reserved.
+model Renamedclass {
+  id          String       @id
+  name        String
+  trainerId   String
+  schedule    String?
+  maxCapacity Int
+  createdAt   DateTime     @default(now())
+  description String?      @db.Text
+  duration    Int          @default(60)
+  fee         Decimal      @default(0.000000000000000000000000000000)
+  status      String       @default("active")
+  trainer     trainer      @relation(fields: [trainerId], references: [id], onDelete: Cascade, map: "Class_trainerId_fkey")
+  enrollment  enrollment[]
+
+  @@index([trainerId], map: "Class_trainerId_idx")
+  @@map("class")
+}
+
+model enrollment {
+  id           String       @id
+  classId      String
+  memberId     String
+  enrolledAt   DateTime     @default(now())
+  Renamedclass Renamedclass @relation(fields: [classId], references: [id], onDelete: Cascade, map: "Enrollment_classId_fkey")
+  member       member       @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "Enrollment_memberId_fkey")
+
+  @@unique([classId, memberId], map: "Enrollment_classId_memberId_key")
+  @@index([classId], map: "Enrollment_classId_idx")
+  @@index([memberId], map: "Enrollment_memberId_idx")
+}
+
+model equipment {
+  id                String    @id
+  name              String
+  type              String
+  quantityAvailable Int
+  maintenanceLog    String?   @db.LongText
+  createdAt         DateTime  @default(now())
+  condition         String    @default("good")
+  location          String?
+  purchaseDate      DateTime?
+  purchasePrice     Decimal   @default(0.000000000000000000000000000000)
+  serialNumber      String?
+}
+
+model invoice {
+  id            String         @id
+  memberId      String?
+  transactionId String         @unique(map: "Invoice_transactionId_key")
+  invoiceNumber String         @unique(map: "Invoice_invoiceNumber_key")
+  totalAmount   Decimal
+  dueDate       DateTime
+  status        invoice_status @default(DRAFT)
+  pdfUrl        String?
+  createdAt     DateTime       @default(now())
+  member        member?        @relation(fields: [memberId], references: [id], map: "Invoice_memberId_fkey")
+  transaction   transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade, map: "Invoice_transactionId_fkey")
+
+  @@index([invoiceNumber], map: "Invoice_invoiceNumber_idx")
+  @@index([memberId], map: "Invoice_memberId_idx")
+}
+
+model leave {
+  id         String       @id
+  staffId    String
+  type       leave_type
+  startDate  DateTime
+  endDate    DateTime
+  reason     String
+  status     leave_status @default(PENDING)
+  approvedBy String?
+  approvedAt DateTime?
+  createdAt  DateTime     @default(now())
+  staff      staff        @relation(fields: [staffId], references: [id], onDelete: Cascade, map: "Leave_staffId_fkey")
+
+  @@index([staffId], map: "Leave_staffId_idx")
+  @@index([status], map: "Leave_status_idx")
+}
+
+model member {
+  id             String       @id
+  userId         String       @unique(map: "Member_userId_key")
+  name           String
+  phone          String
+  address        String?
+  dob            DateTime?
+  gender         String?
+  joinDate       DateTime     @default(now())
+  expiryDate     DateTime
+  status         String       @default("active")
+  monthlyFee     Decimal      @default(0.000000000000000000000000000000)
+  bmi            Decimal?
+  bodyFat        Decimal?
+  cnic           String?      @unique(map: "Member_cnic_key")
+  medicalHistory String?      @db.LongText
+  photo          String?
+  trainerId      String?
+  weight         Decimal?
+  attendance     attendance[]
+  card           card[]
+  enrollment     enrollment[]
+  invoice        invoice[]
+  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Member_userId_fkey")
+  membership     membership[]
+  progress       progress[]
+  dietplan       dietplan[]
+  nutritionlog   nutritionlog[]
+
+  @@index([cnic], map: "Member_cnic_idx")
+  @@index([phone], map: "Member_phone_idx")
+  @@index([userId], map: "Member_userId_idx")
+}
+
+model membership {
+  id            String                   @id
+  memberId      String
+  planType      membership_planType
+  startDate     DateTime                 @default(now())
+  endDate       DateTime
+  feeAmount     Decimal
+  paymentStatus membership_paymentStatus @default(PENDING)
+  discount      Decimal                  @default(0.000000000000000000000000000000)
+  duration      Int                      @default(1)
+  frozenUntil   DateTime?
+  isFrozen      Boolean                  @default(false)
+  planId        String?
+  member        member                   @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "Membership_memberId_fkey")
+  plan          plan?                    @relation(fields: [planId], references: [id], map: "Membership_planId_fkey")
+  payment       payment[]
+
+  @@index([memberId], map: "Membership_memberId_idx")
+  @@index([planId], map: "Membership_planId_idx")
+}
+
+model payment {
+  id           String         @id
+  membershipId String
+  amount       Decimal
+  paymentDate  DateTime       @default(now())
+  method       payment_method
+  receiptUrl   String?
+  notes        String?
+  membership   membership     @relation(fields: [membershipId], references: [id], onDelete: Cascade, map: "Payment_membershipId_fkey")
+  transaction  transaction[]
+
+  @@index([membershipId], map: "Payment_membershipId_idx")
+  @@index([paymentDate], map: "Payment_paymentDate_idx")
+}
+
+model payroll {
+  id          String    @id
+  staffId     String
+  month       Int
+  year        Int
+  basicSalary Decimal
+  allowances  Decimal   @default(0.000000000000000000000000000000)
+  deductions  Decimal   @default(0.000000000000000000000000000000)
+  commission  Decimal   @default(0.000000000000000000000000000000)
+  netSalary   Decimal
+  paidDate    DateTime?
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+  staff       staff     @relation(fields: [staffId], references: [id], onDelete: Cascade, map: "Payroll_staffId_fkey")
+
+  @@index([month, year], map: "Payroll_month_year_idx")
+  @@index([staffId], map: "Payroll_staffId_idx")
+}
+
+model plan {
+  id          String       @id
+  name        String       @unique(map: "Plan_name_key")
+  description String?
+  price       Decimal
+  duration    Int
+  features    String?      @db.LongText
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  membership  membership[]
+
+  @@index([name], map: "Plan_name_idx")
+}
+
+model progress {
+  id       String   @id
+  memberId String
+  date     DateTime @default(now())
+  weight   Decimal
+  bmi      Decimal?
+  bodyFat  Decimal?
+  notes    String?
+  member   member   @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "Progress_memberId_fkey")
+
+  @@index([date], map: "Progress_date_idx")
+  @@index([memberId], map: "Progress_memberId_idx")
+}
+
+model settings {
+  id                     String   @id
+  gymName                String
+  monthlyFeeDefault      Decimal
+  lateFee                Decimal
+  logoUrl                String?
+  workingHours           String   @db.LongText
+  smsEmailConfig         String?  @db.LongText
+  updatedAt              DateTime
+  dueMessageTemplate     String?  @db.Text
+  emailHost              String?  @default("smtp.gmail.com")
+  emailPass              String?
+  emailPort              Int?     @default(587)
+  emailUser              String?
+  enableEmail            Boolean  @default(true)
+  enableSMS              Boolean  @default(true)
+  enableWhatsApp         Boolean  @default(false)
+  renewalMessageTemplate String?  @db.Text
+  twilioAccountSid       String?
+  twilioAuthToken        String?
+  twilioPhoneNumber      String?
+  whatsappApiKey         String?
+  whatsappApiUrl         String?
+  whatsappPhoneId        String?
+  twilioTestNumber       String?
+}
+
+model staff {
+  id               String            @id
+  name             String
+  email            String            @unique(map: "Staff_email_key")
+  phone            String
+  cnic             String?           @unique(map: "Staff_cnic_key")
+  photo            String?
+  address          String?
+  dob              DateTime?
+  gender           String?
+  department       String
+  designation      String
+  joinDate         DateTime          @default(now())
+  salary           Decimal
+  commission       Decimal           @default(0.000000000000000000000000000000)
+  bankAccount      String?
+  emergencyContact String?           @db.LongText
+  status           String            @default("active")
+  createdAt        DateTime          @default(now())
+  leave            leave[]
+  payroll          payroll[]
+  staffattendance  staffattendance[]
+
+  @@index([cnic], map: "Staff_cnic_idx")
+  @@index([department], map: "Staff_department_idx")
+  @@index([email], map: "Staff_email_idx")
+}
+
+model staffattendance {
+  id       String                 @id
+  staffId  String
+  date     DateTime               @default(now())
+  checkIn  DateTime?
+  checkOut DateTime?
+  status   staffattendance_status @default(PRESENT)
+  notes    String?
+  staff    staff                  @relation(fields: [staffId], references: [id], onDelete: Cascade, map: "StaffAttendance_staffId_fkey")
+
+  @@index([date], map: "StaffAttendance_date_idx")
+  @@index([staffId], map: "StaffAttendance_staffId_idx")
+}
+
+model trainer {
+  id             String         @id
+  userId         String         @unique(map: "Trainer_userId_key")
+  name           String
+  specialization String?
+  phone          String
+  availability   String?        @db.LongText
+  salary         Decimal        @db.Decimal(10, 0)
+  attendance     attendance[]
+  Renamedclass   Renamedclass[]
+  user           user           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Trainer_userId_fkey")
+  dietplan       dietplan[]
+
+  @@index([userId], map: "Trainer_userId_idx")
+}
+
+model transaction {
+  id          String               @id
+  accountId   String
+  amount      Decimal
+  type        transaction_type
+  date        DateTime             @default(now())
+  description String?
+  category    transaction_category
+  referenceId String?
+  createdBy   String?
+  invoice     invoice?
+  account     account              @relation(fields: [accountId], references: [id], onDelete: Cascade, map: "Transaction_accountId_fkey")
+  payment     payment?             @relation(fields: [referenceId], references: [id], map: "Transaction_referenceId_fkey")
+
+  @@index([accountId], map: "Transaction_accountId_idx")
+  @@index([category], map: "Transaction_category_idx")
+  @@index([date], map: "Transaction_date_idx")
+  @@index([referenceId], map: "Transaction_referenceId_fkey")
+}
+
+model user {
+  id        String     @id
+  email     String     @unique(map: "User_email_key")
+  password  String
+  role      user_role
+  createdAt DateTime   @default(now())
+  auditlog  auditlog[]
+  member    member?
+  trainer   trainer?
+}
+
+model dietplan {
+  id             String   @id
+  memberId       String
+  trainerId      String?
+  name           String
+  goal           diet_goal
+  startDate      DateTime @default(now())
+  endDate        DateTime?
+  targetCalories Int
+  targetProtein  Decimal  @db.Decimal(10, 2)
+  targetCarbs    Decimal  @db.Decimal(10, 2)
+  targetFats     Decimal  @db.Decimal(10, 2)
+  notes          String?  @db.Text
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  member         member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer        trainer? @relation(fields: [trainerId], references: [id])
+  meal           meal[]
+
+  @@index([memberId])
+  @@index([trainerId])
+  @@index([status])
+}
+
+model meal {
+  id           String     @id
+  dietPlanId   String
+  name         String
+  type         meal_type
+  time         String
+  calories     Int
+  protein      Decimal    @db.Decimal(10, 2)
+  carbs        Decimal    @db.Decimal(10, 2)
+  fats         Decimal    @db.Decimal(10, 2)
+  instructions String?    @db.Text
+  dayOfWeek    Int?
+  isActive     Boolean    @default(true)
+  dietplan     dietplan   @relation(fields: [dietPlanId], references: [id], onDelete: Cascade)
+  mealitem     mealitem[]
+
+  @@index([dietPlanId])
+  @@index([type])
+}
+
+model mealitem {
+  id         String   @id
+  mealId     String
+  foodItemId String
+  quantity   Decimal  @db.Decimal(10, 2)
+  unit       String
+  meal       meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  fooditem   fooditem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+
+  @@index([mealId])
+  @@index([foodItemId])
+}
+
+model fooditem {
+  id               String             @id
+  name             String
+  category         String
+  servingSize      Decimal            @db.Decimal(10, 2)
+  servingUnit      String
+  calories         Int
+  protein          Decimal            @db.Decimal(10, 2)
+  carbs            Decimal            @db.Decimal(10, 2)
+  fats             Decimal            @db.Decimal(10, 2)
+  fiber            Decimal?           @db.Decimal(10, 2)
+  sugar            Decimal?           @db.Decimal(10, 2)
+  sodium           Decimal?           @db.Decimal(10, 2)
+  isCustom         Boolean            @default(false)
+  createdBy        String?
+  createdAt        DateTime           @default(now())
+  mealitem         mealitem[]
+  nutritionlogitem nutritionlogitem[]
+
+  @@index([category])
+  @@index([name])
+}
+
+model nutritionlog {
+  id               String             @id
+  memberId         String
+  date             DateTime           @default(now())
+  mealType         meal_type
+  totalCalories    Int
+  totalProtein     Decimal            @db.Decimal(10, 2)
+  totalCarbs       Decimal            @db.Decimal(10, 2)
+  totalFats        Decimal            @db.Decimal(10, 2)
+  waterIntake      Decimal?           @db.Decimal(10, 2)
+  notes            String?            @db.Text
+  member           member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  nutritionlogitem nutritionlogitem[]
+
+  @@index([memberId])
+  @@index([date])
+}
+
+model nutritionlogitem {
+  id            String       @id
+  nutritionLogId String
+  foodItemId    String
+  quantity      Decimal      @db.Decimal(10, 2)
+  unit          String
+  nutritionlog  nutritionlog @relation(fields: [nutritionLogId], references: [id], onDelete: Cascade)
+  fooditem      fooditem     @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+
+  @@index([nutritionLogId])
+  @@index([foodItemId])
+}
+
+enum account_type {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum leave_type {
+  SICK
+  CASUAL
+  ANNUAL
+  UNPAID
+}
+
+enum membership_planType {
+  BASIC
+  PREMIUM
+}
+
+enum transaction_type {
+  DEBIT
+  CREDIT
+}
+
+enum user_role {
+  ADMIN
+  TRAINER
+  MEMBER
+}
+
+enum payment_method {
+  CASH
+  CARD
+  BANK_TRANSFER
+  ONLINE
+  UPI
+}
+
+enum staffattendance_status {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LATE
+}
+
+enum invoice_status {
+  DRAFT
+  SENT
+  PAID
+}
+
+enum leave_status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum membership_paymentStatus {
+  PAID
+  PENDING
+  OVERDUE
+}
+
+enum transaction_category {
+  MEMBER_FEE
+  SALARY
+  EQUIPMENT
+  UTILITY
+  OTHER
+}
+
+enum diet_goal {
+  WEIGHT_LOSS
+  WEIGHT_GAIN
+  MUSCLE_GAIN
+  MAINTENANCE
+  ATHLETIC
+}
+
+enum meal_type {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+  PRE_WORKOUT
+  POST_WORKOUT
+}
