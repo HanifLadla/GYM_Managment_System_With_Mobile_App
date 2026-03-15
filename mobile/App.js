@@ -1,13 +1,12 @@
-import 'react-native-gesture-handler';
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Screens
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import MembersScreen from './src/screens/MembersScreen';
@@ -15,30 +14,13 @@ import AttendanceScreen from './src/screens/AttendanceScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import QRScannerScreen from './src/screens/QRScannerScreen';
-import TrainersScreen from './src/screens/TrainersScreen';
-import ClassesScreen from './src/screens/ClassesScreen';
-import EquipmentScreen from './src/screens/EquipmentScreen';
-import PlansScreen from './src/screens/PlansScreen';
-import ReportsScreen from './src/screens/ReportsScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-import AddMemberScreen from './src/screens/AddMemberScreen';
-import AddPaymentScreen from './src/screens/AddPaymentScreen';
-import EditProfileScreen from './src/screens/EditProfileScreen';
-import NotificationsScreen from './src/screens/NotificationsScreen';
-import HelpSupportScreen from './src/screens/HelpSupportScreen';
-import AboutScreen from './src/screens/AboutScreen';
-
-// Components
-import HeaderWithMenu from './src/components/HeaderWithMenu';
-import SimpleSplash from './src/components/SimpleSplash';
-
-// Context
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ROLES, hasRole } from './src/utils/roles';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+<<<<<<< HEAD
 function TabNavigator() {
   const { user } = useAuth();
   const isAdmin = hasRole(user, [ROLES.ADMIN]);
@@ -93,17 +75,64 @@ function AppNavigator() {
   const { user, loading } = useAuth();
   const isAdmin = hasRole(user, [ROLES.ADMIN]);
   const isTrainer = hasRole(user, [ROLES.TRAINER]);
+=======
+const TabNavigator = () => (
+  <Tab.Navigator
+    screenOptions={({ route }) => ({
+      tabBarIcon: ({ focused, color, size }) => {
+        const icons = {
+          Dashboard: focused ? 'home' : 'home-outline',
+          Members: focused ? 'people' : 'people-outline',
+          Attendance: focused ? 'checkmark-circle' : 'checkmark-circle-outline',
+          Payments: focused ? 'cash' : 'cash-outline',
+          Profile: focused ? 'person' : 'person-outline',
+        };
+        return <Ionicons name={icons[route.name]} size={size} color={color} />;
+      },
+      tabBarActiveTintColor: '#3b82f6',
+      tabBarInactiveTintColor: '#9ca3af',
+      headerShown: false,
+      tabBarStyle: {
+        backgroundColor: 'white',
+        borderTopWidth: 0,
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        height: 60,
+        paddingBottom: 8,
+      },
+      tabBarLabelStyle: { fontSize: 11, fontWeight: '500' },
+    })}
+  >
+    <Tab.Screen name="Dashboard" component={DashboardScreen} />
+    <Tab.Screen name="Members" component={MembersScreen} />
+    <Tab.Screen name="Attendance" component={AttendanceScreen} />
+    <Tab.Screen name="Payments" component={PaymentsScreen} />
+    <Tab.Screen name="Profile" component={ProfileScreen} />
+  </Tab.Navigator>
+);
+
+const AppNavigator = () => {
+  const { user, loading } = useAuth();
+>>>>>>> b4a848d4eeb1f268ffcc1414cb87a0ad450da9b1
 
   if (loading) {
-    return <SimpleSplash />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
   }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          <Stack.Group>
+          <>
             <Stack.Screen name="Main" component={TabNavigator} />
+<<<<<<< HEAD
             {(isAdmin || isTrainer) && (
               <Stack.Screen name="QRScanner" component={QRScannerScreen} />
             )}
@@ -201,20 +230,29 @@ function AppNavigator() {
             <Stack.Screen name="HelpSupport" component={HelpSupportScreen} options={{ headerShown: true, title: 'Help & Support' }} />
             <Stack.Screen name="About" component={AboutScreen} options={{ headerShown: true, title: 'About' }} />
           </Stack.Group>
+=======
+            <Stack.Screen name="QRScanner" component={QRScannerScreen}
+              options={{ presentation: 'modal' }} />
+          </>
+>>>>>>> b4a848d4eeb1f268ffcc1414cb87a0ad450da9b1
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f4ff' },
+});
 
 export default function App() {
   return (
     <PaperProvider>
       <AuthProvider>
         <AppNavigator />
-        <StatusBar style="auto" />
+        <StatusBar style="dark" />
       </AuthProvider>
     </PaperProvider>
   );
