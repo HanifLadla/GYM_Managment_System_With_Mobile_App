@@ -39,11 +39,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await apiService.login(email, password);
-      const { token, user: userData } = response;
+      const { token } = response;
       
       await AsyncStorage.setItem('token', token);
       apiService.setAuthToken(token);
-      setUser(userData);
+
+      const currentUser = await apiService.getCurrentUser();
+      setUser(currentUser);
       
       return { success: true };
     } catch (error) {

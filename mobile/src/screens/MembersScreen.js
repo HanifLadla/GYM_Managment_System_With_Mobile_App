@@ -8,13 +8,16 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Card, Searchbar, FAB } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../services/apiService';
+import { useAuth } from '../context/AuthContext';
+import { ROLES, hasRole } from '../utils/roles';
 
 const MembersScreen = ({ navigation }) => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useAuth();
+  const isAdmin = hasRole(user, [ROLES.ADMIN]);
 
   useEffect(() => {
     fetchMembers();
@@ -33,7 +36,10 @@ const MembersScreen = ({ navigation }) => {
   };
 
   const MemberCard = ({ member }) => (
-    <Card style={styles.memberCard} onPress={() => navigation.navigate('AddMember', { member })}>
+    <Card
+      style={styles.memberCard}
+      onPress={isAdmin ? () => navigation.navigate('AddMember', { member }) : undefined}
+    >
       <Card.Content>
         <View style={styles.memberHeader}>
           <View style={styles.memberInfo}>
@@ -82,11 +88,13 @@ const MembersScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       />
 
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddMember')}
-      />
+      {isAdmin && (
+        <FAB
+          icon="plus"
+          style={styles.fab}
+          onPress={() => navigation.navigate('AddMember')}
+        />
+      )}
     </View>
   );
 };

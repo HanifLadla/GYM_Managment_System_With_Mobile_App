@@ -13,6 +13,7 @@ import { LineChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
+import { ROLES, hasRole } from '../utils/roles';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -20,7 +21,7 @@ const DashboardScreen = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = hasRole(user, [ROLES.ADMIN]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -134,12 +135,14 @@ const DashboardScreen = ({ navigation }) => {
                 color="#3b82f6"
                 onPress={() => navigation.navigate('QRScanner')}
               />
-              <QuickAction
-                title="Add Member"
-                icon="person-add"
-                color="#10b981"
-                onPress={() => navigation.navigate('AddMember')}
-              />
+              {isAdmin && (
+                <QuickAction
+                  title="Add Member"
+                  icon="person-add"
+                  color="#10b981"
+                  onPress={() => navigation.navigate('AddMember')}
+                />
+              )}
               <QuickAction
                 title="Payments"
                 icon="card"

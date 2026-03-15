@@ -3,25 +3,34 @@ import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Card, FAB } from 'react-native-paper';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../context/AuthContext';
+import { ROLES, hasRole } from '../utils/roles';
 
 const PaymentsScreen = ({ navigation }) => {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
-  const isMember = user?.role === 'member';
+  const isMember = hasRole(user, [ROLES.MEMBER]);
+  const isAdmin = hasRole(user, [ROLES.ADMIN]);
 
   useEffect(() => {
-    fetchPayments();
-  }, []);
+    if (user) {
+      fetchPayments();
+    }
+  }, [user]);
 
   const fetchPayments = async () => {
     setLoading(true);
     try {
       console.log('Fetching payments for user:', user);
       let data;
-      if (user?.role === 'member') {
+      if (isMember) {
+        if (!user?.member?.id) {
+          setPayments([]);
+          return;
+        }
+
         // For members, fetch only their own payments
-        data = await apiService.getPayments({ memberId: user.id });
+        data = await apiService.getMemberPayments(user?.member?.id);
       } else {
         // For admin/trainer, fetch all payments
         data = await apiService.getPayments();
@@ -75,7 +84,7 @@ const PaymentsScreen = ({ navigation }) => {
           </View>
         }
       />
-      {!isMember && (
+      {isAdmin && (
         <FAB icon="plus" style={styles.fab} onPress={() => navigation.navigate('AddPayment')} />
       )}
     </View>

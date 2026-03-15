@@ -10,21 +10,21 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { ROLES, hasRole } from '../utils/roles';
 
 const HeaderWithMenu = ({ title, navigation }) => {
   const [visible, setVisible] = useState(false);
   const { user, logout } = useAuth();
-  const isAdmin = user?.role === 'admin';
 
   const menuItems = [
-    { name: 'Profile', icon: 'person', screen: 'Profile', roles: ['admin', 'trainer', 'member'] },
-    { name: 'My Payments', icon: 'card', screen: 'Payments', roles: ['member'] },
-    { name: 'Trainers', icon: 'fitness', screen: 'Trainers', roles: ['admin'] },
-    { name: 'Classes', icon: 'calendar', screen: 'Classes', roles: ['admin', 'trainer'] },
-    { name: 'Equipment', icon: 'barbell', screen: 'Equipment', roles: ['admin'] },
-    { name: 'Plans', icon: 'pricetag', screen: 'Plans', roles: ['admin', 'trainer'] },
-    { name: 'Reports', icon: 'bar-chart', screen: 'Reports', roles: ['admin', 'trainer'] },
-    { name: 'Settings', icon: 'settings', screen: 'Settings', roles: ['admin'] },
+    { name: 'Profile', icon: 'person', screen: 'Profile', roles: [ROLES.ADMIN, ROLES.TRAINER, ROLES.MEMBER] },
+    { name: 'My Payments', icon: 'card', screen: 'Payments', roles: [ROLES.MEMBER] },
+    { name: 'Trainers', icon: 'fitness', screen: 'Trainers', roles: [ROLES.ADMIN, ROLES.TRAINER] },
+    { name: 'Classes', icon: 'calendar', screen: 'Classes', roles: [ROLES.ADMIN, ROLES.TRAINER] },
+    { name: 'Equipment', icon: 'barbell', screen: 'Equipment', roles: [ROLES.ADMIN] },
+    { name: 'Plans', icon: 'pricetag', screen: 'Plans', roles: [ROLES.ADMIN, ROLES.TRAINER] },
+    { name: 'Reports', icon: 'bar-chart', screen: 'Reports', roles: [ROLES.ADMIN, ROLES.TRAINER] },
+    { name: 'Settings', icon: 'settings', screen: 'Settings', roles: [ROLES.ADMIN] },
   ];
 
   const handleNavigate = (screen) => {
@@ -54,7 +54,7 @@ const HeaderWithMenu = ({ title, navigation }) => {
 
             <ScrollView style={styles.menuList}>
               {menuItems.map((item, index) => {
-                if (!item.roles.includes(user?.role)) return null;
+                if (!hasRole(user, item.roles)) return null;
                 
                 return (
                   <TouchableOpacity

@@ -5,6 +5,14 @@ const { auth, authorize } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
+const resolveMemberIdForUser = async (userId) => {
+  const member = await prisma.member.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
+  return member?.id || null;
+};
+
 router.post('/', auth, authorize('ADMIN'), async (req, res) => {
   try {
     const { memberId, membershipId, amount, method, notes } = req.body;
@@ -104,6 +112,14 @@ router.get('/', auth, async (req, res) => {
   try {
     const { startDate, endDate, method } = req.query;
     const where = {};
+
+    if (req.user.role === 'MEMBER') {
+      const memberId = await resolveMemberIdForUser(req.user.id);
+      if (!memberId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      where.membership = { memberId };
+    }
     
     if (startDate && endDate) {
       where.paymentDate = {
@@ -142,6 +158,14 @@ router.get('/:id', auth, async (req, res) => {
       }
     });
     if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+    if (req.user.role === 'MEMBER') {
+      const memberId = await resolveMemberIdForUser(req.user.id);
+      if (!memberId || payment.membership?.member?.id !== memberId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     res.json(payment);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -197,9 +221,20 @@ router.delete('/:id', auth, authorize('ADMIN'), async (req, res) => {
 
 router.get('/member/:memberId', auth, async (req, res) => {
   try {
+    if (req.user.role === 'MEMBER') {
+      const memberId = await resolveMemberIdForUser(req.user.id);
+      if (!memberId || req.params.memberId !== memberId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     const payments = await prisma.payment.findMany({
       where: { membership: { memberId: req.params.memberId } },
-      include: { membership: true },
+      include: {
+        membership: {
+          include: { member: true },
+        },
+      },
       orderBy: { paymentDate: 'desc' }
     });
     res.json(payments);

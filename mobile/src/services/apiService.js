@@ -73,6 +73,11 @@ class ApiService {
     return response.data;
   }
 
+  async getMemberPayments(memberId) {
+    const response = await this.api.get(`/payments/member/${memberId}`);
+    return response.data;
+  }
+
   async createPayment(paymentData) {
     const response = await this.api.post('/payments', paymentData);
     return response.data;

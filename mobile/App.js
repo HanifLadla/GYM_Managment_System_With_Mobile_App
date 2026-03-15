@@ -34,15 +34,15 @@ import SimpleSplash from './src/components/SimpleSplash';
 
 // Context
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ROLES, hasRole } from './src/utils/roles';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabNavigator() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const isTrainer = user?.role === 'trainer';
-  const isMember = user?.role === 'member';
+  const isAdmin = hasRole(user, [ROLES.ADMIN]);
+  const isTrainer = hasRole(user, [ROLES.TRAINER]);
 
   return (
     <Tab.Navigator
@@ -83,9 +83,7 @@ function TabNavigator() {
         <Tab.Screen name="Members" component={MembersScreen} />
       )}
       <Tab.Screen name="Attendance" component={AttendanceScreen} />
-      {(isAdmin || isTrainer) && (
-        <Tab.Screen name="Payments" component={PaymentsScreen} />
-      )}
+      <Tab.Screen name="Payments" component={PaymentsScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -93,8 +91,8 @@ function TabNavigator() {
 
 function AppNavigator() {
   const { user, loading } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const isTrainer = user?.role === 'trainer';
+  const isAdmin = hasRole(user, [ROLES.ADMIN]);
+  const isTrainer = hasRole(user, [ROLES.TRAINER]);
 
   if (loading) {
     return <SimpleSplash />;
@@ -106,7 +104,9 @@ function AppNavigator() {
         {user ? (
           <Stack.Group>
             <Stack.Screen name="Main" component={TabNavigator} />
-            <Stack.Screen name="QRScanner" component={QRScannerScreen} />
+            {(isAdmin || isTrainer) && (
+              <Stack.Screen name="QRScanner" component={QRScannerScreen} />
+            )}
             <Stack.Screen 
               name="Profile" 
               component={ProfileScreen} 
@@ -149,15 +149,17 @@ function AppNavigator() {
                 })} 
               />
             )}
-            <Stack.Screen 
-              name="Plans" 
-              component={PlansScreen} 
-              options={({ navigation }) => ({
-                headerShown: true,
-                title: 'Plans',
-                header: () => <HeaderWithMenu title="Plans" navigation={navigation} />
-              })} 
-            />
+            {(isAdmin || isTrainer) && (
+              <Stack.Screen 
+                name="Plans" 
+                component={PlansScreen} 
+                options={({ navigation }) => ({
+                  headerShown: true,
+                  title: 'Plans',
+                  header: () => <HeaderWithMenu title="Plans" navigation={navigation} />
+                })} 
+              />
+            )}
             {(isAdmin || isTrainer) && (
               <Stack.Screen 
                 name="Reports" 
@@ -180,16 +182,20 @@ function AppNavigator() {
                 })} 
               />
             )}
-            <Stack.Screen 
-              name="AddMember" 
-              component={AddMemberScreen} 
-              options={{ headerShown: true, title: 'Add Member' }} 
-            />
-            <Stack.Screen 
-              name="AddPayment" 
-              component={AddPaymentScreen} 
-              options={{ headerShown: true, title: 'Add Payment' }} 
-            />
+            {isAdmin && (
+              <Stack.Screen 
+                name="AddMember" 
+                component={AddMemberScreen} 
+                options={{ headerShown: true, title: 'Add Member' }} 
+              />
+            )}
+            {isAdmin && (
+              <Stack.Screen 
+                name="AddPayment" 
+                component={AddPaymentScreen} 
+                options={{ headerShown: true, title: 'Add Payment' }} 
+              />
+            )}
             <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: true, title: 'Edit Profile' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true, title: 'Notifications' }} />
             <Stack.Screen name="HelpSupport" component={HelpSupportScreen} options={{ headerShown: true, title: 'Help & Support' }} />
