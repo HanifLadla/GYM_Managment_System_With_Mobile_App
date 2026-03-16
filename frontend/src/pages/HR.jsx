@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // v2
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import DataTable from '../components/DataTable';
@@ -15,6 +15,8 @@ const HR = () => {
   const [staff, setStaff] = useState([]);
   const [trainers, setTrainers] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [trainerAttendance, setTrainerAttendance] = useState([]);
+  const [attendanceSubTab, setAttendanceSubTab] = useState('staff'); // 'staff' | 'trainer'
   const [leaves, setLeaves] = useState([]);
   const [payrolls, setPayrolls] = useState([]);
   const [stats, setStats] = useState({});
@@ -43,7 +45,7 @@ const HR = () => {
     fetchStats();
     if (activeTab === 'staff') fetchStaff();
     if (activeTab === 'trainers') fetchTrainers();
-    if (activeTab === 'attendance') fetchAttendance();
+    if (activeTab === 'attendance') { fetchAttendance(); fetchTrainerAttendance(); }
     if (activeTab === 'leaves') fetchLeaves();
     if (activeTab === 'payroll') fetchPayrolls();
   }, [activeTab]);
@@ -72,6 +74,15 @@ const HR = () => {
       setTrainers(data);
     } catch (error) {
       addAlert('Failed to load trainers', 'error');
+    }
+  };
+
+  const fetchTrainerAttendance = async () => {
+    try {
+      const { data } = await axios.get('/api/hr/trainer-attendance');
+      setTrainerAttendance(data);
+    } catch (error) {
+      addAlert('Failed to load trainer attendance', 'error');
     }
   };
 
@@ -108,15 +119,27 @@ const HR = () => {
       const endpoints = {
         staff: '/api/hr/staff',
         attendance: '/api/hr/attendance',
+        trainerAttendance: '/api/hr/trainer-attendance',
         leave: '/api/hr/leaves',
         payroll: '/api/hr/payroll'
       };
 
+      let payload = { ...formData };
+      if (modalType === 'staff') {
+        const { emergencyContactName, emergencyContactPhone, ...rest } = payload;
+        payload = {
+          ...rest,
+          ...(emergencyContactName || emergencyContactPhone
+            ? { emergencyContact: JSON.stringify({ name: emergencyContactName, phone: emergencyContactPhone }) }
+            : {})
+        };
+      }
+
       if (editingItem) {
-        await axios.put(`${endpoints[modalType]}/${editingItem.id}`, formData);
+        await axios.put(`${endpoints[modalType]}/${editingItem.id}`, payload);
         addAlert(`${modalType} updated successfully!`, 'success');
       } else {
-        await axios.post(endpoints[modalType], formData);
+        await axios.post(endpoints[modalType], payload);
         addAlert(`${modalType} added successfully!`, 'success');
       }
 
@@ -127,6 +150,7 @@ const HR = () => {
       // Refresh data
       if (modalType === 'staff') fetchStaff();
       if (modalType === 'attendance') fetchAttendance();
+      if (modalType === 'trainerAttendance') fetchTrainerAttendance();
       if (modalType === 'leave') fetchLeaves();
       if (modalType === 'payroll') fetchPayrolls();
       fetchStats();
@@ -139,12 +163,21 @@ const HR = () => {
     setFormData({});
   };
 
-  const openModal = (type, item = null) => {
+  const openModal = async (type, item = null) => {
     setModalType(type);
     setEditingItem(item);
+
+    // Pre-load staff & trainers for dropdowns that need them
+    if (['attendance', 'trainerAttendance', 'leave', 'payroll'].includes(type)) {
+      const fetches = [];
+      if (!staff.length) fetches.push(fetchStaff());
+      if (!trainers.length) fetches.push(fetchTrainers());
+      if (fetches.length) await Promise.all(fetches);
+    }
     
     if (item) {
       if (type === 'staff') {
+        const ec = item.emergencyContact ? (typeof item.emergencyContact === 'string' ? JSON.parse(item.emergencyContact) : item.emergencyContact) : {};
         setFormData({
           name: item.name,
           email: item.email,
@@ -153,11 +186,15 @@ const HR = () => {
           address: item.address || '',
           dob: item.dob ? new Date(item.dob).toISOString().split('T')[0] : '',
           gender: item.gender || '',
+          joinDate: item.joinDate ? new Date(item.joinDate).toISOString().split('T')[0] : '',
+          photo: item.photo || '',
           department: item.department,
           designation: item.designation,
           salary: item.salary,
           commission: item.commission || 0,
-          bankAccount: item.bankAccount || ''
+          bankAccount: item.bankAccount || '',
+          emergencyContactName: ec.name || '',
+          emergencyContactPhone: ec.phone || ''
         });
       } else if (type === 'payroll') {
         setFormData({
@@ -174,7 +211,24 @@ const HR = () => {
       if (type === 'staff') {
         setFormData({
           name: '', email: '', phone: '', cnic: '', address: '', dob: '', gender: '',
-          department: departments[0], designation: designations[0], salary: '', commission: 0, bankAccount: ''
+          joinDate: '', photo: '',
+          department: departments[0], designation: designations[0],
+          salary: '', commission: 0, bankAccount: '',
+          emergencyContactName: '', emergencyContactPhone: ''
+        });
+      } else if (type === 'trainerAttendance') {
+        setFormData({
+          trainerId: item?.trainerId || '',
+          date: item?.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          status: item?.status || 'PRESENT',
+          checkIn: item?.checkIn ? new Date(item.checkIn).toTimeString().slice(0,5) : '',
+          checkOut: item?.checkOut ? new Date(item.checkOut).toTimeString().slice(0,5) : '',
+          notes: item?.notes || ''
+        });
+      } else if (type === 'trainerAttendance') {
+        setFormData({
+          trainerId: '', date: new Date().toISOString().split('T')[0], status: 'PRESENT',
+          checkIn: '', checkOut: '', notes: ''
         });
       } else if (type === 'attendance') {
         setFormData({
@@ -219,6 +273,7 @@ const HR = () => {
       
       if (type === 'staff') fetchStaff();
       if (type === 'attendance') fetchAttendance();
+      if (type === 'trainerAttendance') fetchTrainerAttendance();
       if (type === 'leave') fetchLeaves();
       if (type === 'payroll') fetchPayrolls();
       fetchStats();
@@ -289,8 +344,13 @@ const HR = () => {
       header: 'Employee',
       render: (row) => (
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
-            {row.name.charAt(0)}
+          <div className={`w-12 h-12 rounded-xl shadow-lg overflow-hidden flex items-center justify-center text-white font-bold text-lg ${!row.photo ? 'bg-gradient-to-br from-blue-500 to-purple-600' : ''}`}>
+            {row.photo
+              ? <img src={`${import.meta.env.VITE_API_URL || ''}${row.photo}`} alt={row.name} className="w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              : row.name.charAt(0)
+            }
           </div>
           <div>
             <div className="font-semibold text-gray-900 dark:text-white">{row.name}</div>
@@ -393,8 +453,38 @@ const HR = () => {
     { header: 'Staff', render: (row) => row.staff?.name },
     { header: 'Date', render: (row) => new Date(row.date).toLocaleDateString() },
     { header: 'Status', render: (row) => getStatusBadge(row.status) },
-    { header: 'Check In', render: (row) => row.checkIn ? new Date(row.checkIn).toLocaleTimeString() : 'N/A' },
-    { header: 'Check Out', render: (row) => row.checkOut ? new Date(row.checkOut).toLocaleTimeString() : 'N/A' }
+    { header: 'Check In', render: (row) => row.checkIn ? new Date(row.checkIn).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'N/A' },
+    { header: 'Check Out', render: (row) => row.checkOut ? new Date(row.checkOut).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'N/A' },
+    {
+      header: 'Actions',
+      render: (row) => (
+        <div className="flex gap-2">
+          <button onClick={() => openModal('attendance', row)}
+            className="text-blue-600 hover:text-blue-800 p-1"><FiEdit className="w-4 h-4" /></button>
+          <button onClick={() => handleDelete('attendance', row.id)}
+            className="text-red-600 hover:text-red-800 p-1"><FiTrash2 className="w-4 h-4" /></button>
+        </div>
+      )
+    }
+  ];
+
+  const trainerAttendanceColumns = [
+    { header: 'Trainer', render: (row) => row.trainer?.name },
+    { header: 'Date', render: (row) => new Date(row.date).toLocaleDateString() },
+    { header: 'Status', render: (row) => getStatusBadge(row.status) },
+    { header: 'Check In', render: (row) => row.checkIn ? new Date(row.checkIn).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'N/A' },
+    { header: 'Check Out', render: (row) => row.checkOut ? new Date(row.checkOut).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'N/A' },
+    {
+      header: 'Actions',
+      render: (row) => (
+        <div className="flex gap-2">
+          <button onClick={() => openModal('trainerAttendance', row)}
+            className="text-blue-600 hover:text-blue-800 p-1"><FiEdit className="w-4 h-4" /></button>
+          <button onClick={() => handleDelete('trainer-attendance', row.id)}
+            className="text-red-600 hover:text-red-800 p-1"><FiTrash2 className="w-4 h-4" /></button>
+        </div>
+      )
+    }
   ];
 
   const leaveColumns = [
@@ -632,16 +722,45 @@ const HR = () => {
           className="space-y-4"
         >
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold dark:text-white">Attendance Management</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-semibold dark:text-white">Attendance Management</h2>
+              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setAttendanceSubTab('staff')}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition ${
+                    attendanceSubTab === 'staff'
+                      ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  Staff
+                </button>
+                <button
+                  onClick={() => setAttendanceSubTab('trainer')}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition ${
+                    attendanceSubTab === 'trainer'
+                      ? 'bg-white dark:bg-gray-600 text-green-600 dark:text-green-400 shadow'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  Trainers
+                </button>
+              </div>
+            </div>
             <button
-              onClick={() => openModal('attendance')}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+              onClick={() => openModal(attendanceSubTab === 'staff' ? 'attendance' : 'trainerAttendance')}
+              className={`text-white px-4 py-2 rounded-lg flex items-center gap-2 ${
+                attendanceSubTab === 'staff' ? 'bg-green-600 hover:bg-green-700' : 'bg-teal-600 hover:bg-teal-700'
+              }`}
             >
               <FiPlus /> Mark Attendance
             </button>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-            <DataTable columns={attendanceColumns} data={attendance} />
+            {attendanceSubTab === 'staff'
+              ? <DataTable columns={attendanceColumns} data={attendance} />
+              : <DataTable columns={trainerAttendanceColumns} data={trainerAttendance} />
+            }
           </div>
         </motion.div>
       )}
@@ -711,91 +830,140 @@ const HR = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {modalType === 'staff' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Basic Info */}
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Name</label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
+                <label className="block text-sm font-medium mb-2 dark:text-white">Full Name *</label>
+                <input type="text" value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                />
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Email</label>
-                <input
-                  type="email"
-                  value={formData.email || ''}
+                <label className="block text-sm font-medium mb-2 dark:text-white">Email *</label>
+                <input type="email" value={formData.email || ''}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                />
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone || ''}
+                <label className="block text-sm font-medium mb-2 dark:text-white">Phone *</label>
+                <input type="tel" value={formData.phone || ''}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                />
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2 dark:text-white">CNIC</label>
-                <input
-                  type="text"
-                  value={formData.cnic || ''}
+                <input type="text" value={formData.cnic || ''}
                   onChange={(e) => setFormData({ ...formData, cnic: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                />
+                  placeholder="XXXXX-XXXXXXX-X"
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Department</label>
-                <select
-                  value={formData.department || ''}
+                <label className="block text-sm font-medium mb-2 dark:text-white">Gender</label>
+                <select value={formData.gender || ''}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Date of Birth</label>
+                <input type="date" value={formData.dob || ''}
+                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Join Date</label>
+                <input type="date" value={formData.joinDate || ''}
+                  onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Photo</label>
+                <div className="flex items-center gap-3">
+                  {formData.photo && (
+                    <img
+                      src={`${import.meta.env.VITE_API_URL || ''}${formData.photo}`}
+                      alt="preview"
+                      className="w-12 h-12 rounded-full object-cover border"
+                    />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      const fd = new FormData();
+                      fd.append('photo', file);
+                      try {
+                        const { data } = await axios.post('/api/hr/staff/upload-photo', fd);
+                        setFormData(prev => ({ ...prev, photo: data.url }));
+                      } catch {
+                        addAlert('Photo upload failed', 'error');
+                      }
+                    }}
+                    className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-gray-300"
+                  />
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2 dark:text-white">Address</label>
+                <input type="text" value={formData.address || ''}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              {/* Job Info */}
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Department *</label>
+                <select value={formData.department || ''}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                >
-                  {departments.map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                  {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Designation</label>
-                <select
-                  value={formData.designation || ''}
+                <label className="block text-sm font-medium mb-2 dark:text-white">Designation *</label>
+                <select value={formData.designation || ''}
                   onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                >
-                  {designations.map(des => (
-                    <option key={des} value={des}>{des}</option>
-                  ))}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                  {designations.map(des => <option key={des} value={des}>{des}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Salary (Rs)</label>
-                <input
-                  type="number"
-                  value={formData.salary || ''}
+                <label className="block text-sm font-medium mb-2 dark:text-white">Salary (Rs) *</label>
+                <input type="number" value={formData.salary || ''}
                   onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  required
-                  min="0"
-                />
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" required min="0" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2 dark:text-white">Commission (Rs)</label>
-                <input
-                  type="number"
-                  value={formData.commission || 0}
+                <input type="number" value={formData.commission || 0}
                   onChange={(e) => setFormData({ ...formData, commission: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  min="0"
-                />
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" min="0" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Bank Account</label>
+                <input type="text" value={formData.bankAccount || ''}
+                  onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
+                  placeholder="Account number"
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              {/* Emergency Contact */}
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Emergency Contact Name</label>
+                <input type="text"
+                  value={formData.emergencyContactName || ''}
+                  onChange={(e) => setFormData({ ...formData, emergencyContactName: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Emergency Contact Phone</label>
+                <input type="tel"
+                  value={formData.emergencyContactPhone || ''}
+                  onChange={(e) => setFormData({ ...formData, emergencyContactPhone: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
               </div>
             </div>
           )}
@@ -803,19 +971,16 @@ const HR = () => {
           {modalType === 'attendance' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Staff/Trainer</label>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Staff</label>
                 <select
                   value={formData.staffId || ''}
                   onChange={(e) => setFormData({ ...formData, staffId: e.target.value })}
                   className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   required
                 >
-                  <option value="">Select Staff/Trainer</option>
+                  <option value="">Select Staff</option>
                   {staff.map(s => (
-                    <option key={`staff-${s.id}`} value={s.id}>{s.name} (Staff)</option>
-                  ))}
-                  {trainers.map(t => (
-                    <option key={`trainer-${t.id}`} value={t.id}>{t.name} (Trainer)</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>
@@ -842,25 +1007,105 @@ const HR = () => {
                   <option value="LATE">Late</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Check In Time</label>
+                <input
+                  type="time"
+                  value={formData.checkIn || ''}
+                  onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Check Out Time</label>
+                <input
+                  type="time"
+                  value={formData.checkOut || ''}
+                  onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2 dark:text-white">Notes</label>
+                <input
+                  type="text"
+                  value={formData.notes || ''}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+              </div>
+            </div>
+          )}
+
+          {modalType === 'trainerAttendance' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Trainer</label>
+                <select
+                  value={formData.trainerId || ''}
+                  onChange={(e) => setFormData({ ...formData, trainerId: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required
+                >
+                  <option value="">Select Trainer</option>
+                  {trainers.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Date</label>
+                <input type="date" value={formData.date || ''}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Status</label>
+                <select value={formData.status || 'PRESENT'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                >
+                  <option value="PRESENT">Present</option>
+                  <option value="ABSENT">Absent</option>
+                  <option value="HALF_DAY">Half Day</option>
+                  <option value="LATE">Late</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Check In Time</label>
+                <input type="time" value={formData.checkIn || ''}
+                  onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Check Out Time</label>
+                <input type="time" value={formData.checkOut || ''}
+                  onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2 dark:text-white">Notes</label>
+                <input type="text" value={formData.notes || ''}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              </div>
             </div>
           )}
 
           {modalType === 'leave' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2 dark:text-white">Staff/Trainer</label>
+                <label className="block text-sm font-medium mb-2 dark:text-white">Staff</label>
                 <select
                   value={formData.staffId || ''}
                   onChange={(e) => setFormData({ ...formData, staffId: e.target.value })}
                   className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   required
                 >
-                  <option value="">Select Staff/Trainer</option>
+                  <option value="">Select Staff</option>
                   {staff.map(s => (
-                    <option key={`staff-${s.id}`} value={s.id}>{s.name} (Staff)</option>
-                  ))}
-                  {trainers.map(t => (
-                    <option key={`trainer-${t.id}`} value={t.id}>{t.name} (Trainer)</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>
@@ -1015,8 +1260,13 @@ const HR = () => {
         {viewingItem && viewingItem.staff && (
           <div className="space-y-6">
             <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {viewingItem.staff.name.charAt(0)}
+              <div className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-white text-2xl font-bold ${!viewingItem.staff.photo ? 'bg-blue-500' : ''}`}>
+                {viewingItem.staff.photo
+                  ? <img src={`${import.meta.env.VITE_API_URL || ''}${viewingItem.staff.photo}`} alt={viewingItem.staff.name} className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  : viewingItem.staff.name.charAt(0)
+                }
               </div>
               <div>
                 <h3 className="text-xl font-bold dark:text-white">{viewingItem.staff.name}</h3>

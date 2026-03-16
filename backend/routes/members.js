@@ -1,6 +1,9 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const Joi = require('joi');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { auth, authorize } = require('../middleware/auth');
 const { generateCard } = require('../utils/cardGenerator');
 const { sendEmail } = require('../utils/email');
@@ -9,6 +12,26 @@ const { sendWhatsApp } = require('../utils/whatsapp');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/members');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `member-${Date.now()}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files allowed'));
+  }
+});
 
 const memberSchema = Joi.object({
   email: Joi.string().email().required(),
@@ -21,7 +44,25 @@ const memberSchema = Joi.object({
   cnic: Joi.string().optional().allow(''),
   monthlyFee: Joi.number().required(),
   planId: Joi.string().optional().allow(''),
-  planType: Joi.string().valid('BASIC', 'PREMIUM').required()
+  planType: Joi.string().valid('BASIC', 'PREMIUM').required(),
+  photo: Joi.string().optional().allow('', null),
+  whatsapp: Joi.string().optional().allow('', null),
+  weight: Joi.number().optional().allow(null, ''),
+  bmi: Joi.number().optional().allow(null, ''),
+  bodyFat: Joi.number().optional().allow(null, ''),
+  medicalHistory: Joi.string().optional().allow('', null),
+  trainerId: Joi.string().optional().allow('', null),
+  status: Joi.string().optional().allow(''),
+  expiryDate: Joi.date().optional().allow(null, ''),
+  membershipDuration: Joi.number().optional().allow(null),
+  membershipDiscount: Joi.number().optional().allow(null)
+});
+
+// Photo upload endpoint
+router.post('/upload-photo', auth, authorize('ADMIN'), upload.single('photo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const photoUrl = `/uploads/members/${req.file.filename}`;
+  res.json({ photoUrl });
 });
 
 router.post('/', auth, authorize('ADMIN'), async (req, res) => {
@@ -30,16 +71,22 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
       const { error } = memberSchema.validate(req.body);
       if (error) throw new Error(error.details[0].message);
 
-      const { email, password, name, phone, address, dob, gender, cnic, monthlyFee, planId, planType } = req.body;
+      const { email, password, name, phone, address, dob, gender, cnic, monthlyFee, planId, planType, photo, whatsapp,
+        weight, bmi, bodyFat, medicalHistory, trainerId, status, expiryDate, membershipDuration, membershipDiscount } = req.body;
       
       const bcrypt = require('bcryptjs');
       const crypto = require('crypto');
       const hashedPassword = await bcrypt.hash(password, 10);
       
       const userId = crypto.randomUUID();
-      const memberId = crypto.randomUUID();
       const membershipId = crypto.randomUUID();
       const cardId = crypto.randomUUID();
+
+      // Generate short readable member ID: MBR-YYYYMM-XXXX
+      const memberCount = await tx.member.count();
+      const seq = String(memberCount + 1).padStart(4, '0');
+      const ym = new Date().toISOString().slice(0, 7).replace('-', '');
+      const memberId = `MBR-${ym}-${seq}`;
       
       // Create user
       const user = await tx.user.create({
@@ -51,8 +98,8 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
         }
       });
 
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + 30);
+      const expiry = expiryDate ? new Date(expiryDate) : new Date();
+      if (!expiryDate) expiry.setDate(expiry.getDate() + 30 * (membershipDuration || 1));
 
       // Create member
       const member = await tx.member.create({
@@ -66,7 +113,15 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
           gender: gender || null,
           cnic: cnic || null,
           monthlyFee,
-          expiryDate
+          expiryDate: expiry,
+          photo: photo || null,
+          whatsapp: whatsapp || null,
+          weight: weight ? parseFloat(weight) : null,
+          bmi: bmi ? parseFloat(bmi) : null,
+          bodyFat: bodyFat ? parseFloat(bodyFat) : null,
+          medicalHistory: medicalHistory || null,
+          trainerId: trainerId || null,
+          status: status || 'active'
         }
       });
 
@@ -77,13 +132,15 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
           memberId: member.id,
           planId: planId || null,
           planType,
-          endDate: expiryDate,
-          feeAmount: monthlyFee
+          endDate: expiry,
+          feeAmount: monthlyFee,
+          duration: membershipDuration || 1,
+          discount: membershipDiscount || 0
         }
       });
 
-      // Generate QR code and card
-      const cardNumber = `GYM-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      // Generate short readable card number: CARD-XXXX
+      const cardNumber = `CARD-${seq}`;
       const QRCode = require('qrcode');
       const qrCodeUrl = await QRCode.toDataURL(cardNumber);
       
@@ -123,7 +180,7 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
 
 router.get('/', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = '', status = 'all', planType = 'all' } = req.query;
+    const { page = 1, limit = 10, search = '', status = 'all', planType = 'all', planId = 'all' } = req.query;
     const skip = (page - 1) * limit;
 
     let where = {};
@@ -141,10 +198,10 @@ router.get('/', auth, async (req, res) => {
       where.status = status;
     }
     
-    if (planType !== 'all') {
-      where.membership = {
-        some: { planType }
-      };
+    if (planId !== 'all') {
+      where.membership = { some: { planId } };
+    } else if (planType !== 'all') {
+      where.membership = { some: { planType } };
     }
 
     const [members, total] = await Promise.all([
@@ -200,10 +257,10 @@ router.get('/:id', auth, async (req, res) => {
 
 router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, phone, address, dob, gender, cnic, monthlyFee, status, email, planId, planType } = req.body;
+    const { name, phone, address, dob, gender, cnic, monthlyFee, status, email, planId, planType, photo, whatsapp,
+      weight, bmi, bodyFat, medicalHistory, trainerId, expiryDate, membershipDuration, membershipDiscount } = req.body;
     
     const result = await prisma.$transaction(async (tx) => {
-      // Update member
       const member = await tx.member.update({
         where: { id: req.params.id },
         data: { 
@@ -214,7 +271,15 @@ router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
           gender: gender || null, 
           cnic: cnic || null,
           monthlyFee, 
-          status 
+          status,
+          ...(photo !== undefined && { photo: photo || null }),
+          ...(whatsapp !== undefined && { whatsapp: whatsapp || null }),
+          ...(weight !== undefined && { weight: weight ? parseFloat(weight) : null }),
+          ...(bmi !== undefined && { bmi: bmi ? parseFloat(bmi) : null }),
+          ...(bodyFat !== undefined && { bodyFat: bodyFat ? parseFloat(bodyFat) : null }),
+          ...(medicalHistory !== undefined && { medicalHistory: medicalHistory || null }),
+          ...(trainerId !== undefined && { trainerId: trainerId || null }),
+          ...(expiryDate && { expiryDate: new Date(expiryDate) })
         }
       });
 
@@ -239,7 +304,10 @@ router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
             data: {
               planId: planId || membership.planId,
               planType: planType || membership.planType,
-              feeAmount: monthlyFee || membership.feeAmount
+              feeAmount: monthlyFee || membership.feeAmount,
+              ...(membershipDuration && { duration: parseInt(membershipDuration) }),
+              ...(membershipDiscount !== undefined && { discount: parseFloat(membershipDiscount) }),
+              ...(expiryDate && { endDate: new Date(expiryDate) })
             }
           });
         }
@@ -257,7 +325,13 @@ router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
 
 router.delete('/:id', auth, authorize('ADMIN'), async (req, res) => {
   try {
-    await prisma.member.delete({ where: { id: req.params.id } });
+    const member = await prisma.member.findUnique({
+      where: { id: req.params.id },
+      select: { userId: true }
+    });
+    if (!member) return res.status(404).json({ error: 'Member not found' });
+    // Deleting the user cascades down and removes the member + all related records
+    await prisma.user.delete({ where: { id: member.userId } });
     res.json({ message: 'Member deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });

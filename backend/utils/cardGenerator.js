@@ -3,7 +3,10 @@ const QRCode = require('qrcode');
 const prisma = new PrismaClient();
 
 async function generateCard(memberId) {
-  const cardNumber = `GYM-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  // Derive seq from existing card count for this member or total cards
+  const cardCount = await prisma.card.count();
+  const seq = String(cardCount + 1).padStart(4, '0');
+  const cardNumber = `CARD-${seq}`;
   
   console.log('Generating QR code for card:', cardNumber);
   const qrCodeUrl = await QRCode.toDataURL(cardNumber);

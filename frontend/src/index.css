@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-text-base: #111827;
+  --color-text-muted: #6b7280;
+  --color-bg-base: #f9fafb;
+  --color-bg-card: #ffffff;
+  --color-border: #e5e7eb;
+}
+
+.dark {
+  --color-text-base: #f3f4f6;
+  --color-text-muted: #9ca3af;
+  --color-bg-base: #111827;
+  --color-bg-card: #1f2937;
+  --color-border: #374151;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -14,4 +30,24 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--color-text-base);
+  background-color: var(--color-bg-base);
+}
+
+/* Dark mode — only set defaults on elements that have NO explicit dark: class */
+.dark body,
+.dark {
+  color: #f3f4f6;
+}
+
+/* Inputs/selects/textareas: set sensible dark defaults without !important */
+.dark input:not([class*="text-"]),
+.dark select:not([class*="text-"]),
+.dark textarea:not([class*="text-"]) {
+  color: #ffffff;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280;
 }

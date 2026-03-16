@@ -24,6 +24,32 @@ const updateUserSchema = Joi.object({
   phone: Joi.string().optional()
 });
 
+// Get user statistics — must be before /:id
+router.get('/stats/overview', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    const [totalUsers, adminUsers, trainerUsers, memberUsers] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { role: 'ADMIN' } }),
+      prisma.user.count({ where: { role: 'TRAINER' } }),
+      prisma.user.count({ where: { role: 'MEMBER' } })
+    ]);
+
+    const recentUsers = await prisma.user.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, email: true, role: true, createdAt: true }
+    });
+
+    res.json({
+      totalUsers,
+      roleDistribution: { admin: adminUsers, trainer: trainerUsers, member: memberUsers },
+      recentUsers
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all users
 router.get('/', auth, authorize('ADMIN'), async (req, res) => {
   try {
@@ -33,7 +59,11 @@ router.get('/', auth, authorize('ADMIN'), async (req, res) => {
     let where = {};
     
     if (search) {
-      where.email = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { member: { name: { contains: search, mode: 'insensitive' } } },
+        { trainer: { name: { contains: search, mode: 'insensitive' } } }
+      ];
     }
     
     if (role !== 'all') {
@@ -310,41 +340,6 @@ router.delete('/:id', auth, authorize('ADMIN'), async (req, res) => {
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get user statistics
-router.get('/stats/overview', auth, authorize('ADMIN'), async (req, res) => {
-  try {
-    const [totalUsers, adminUsers, trainerUsers, memberUsers] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { role: 'ADMIN' } }),
-      prisma.user.count({ where: { role: 'TRAINER' } }),
-      prisma.user.count({ where: { role: 'MEMBER' } })
-    ]);
-
-    const recentUsers = await prisma.user.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true
-      }
-    });
-
-    res.json({
-      totalUsers,
-      roleDistribution: {
-        admin: adminUsers,
-        trainer: trainerUsers,
-        member: memberUsers
-      },
-      recentUsers
-    });
-  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });

@@ -239,6 +239,63 @@ router.get('/staff', auth, authorize('ADMIN'), async (req, res) => {
   }
 });
 
+// Trainer Performance Report
+router.get('/trainers', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
+    const end = endDate ? new Date(endDate) : new Date();
+
+    const trainers = await prisma.trainer.findMany({
+      include: {
+        user: { select: { email: true } },
+        Renamedclass: {
+          include: { enrollment: true }
+        },
+        trainerattendance: {
+          where: { date: { gte: start, lte: end } }
+        },
+        attendance: {
+          where: { date: { gte: start, lte: end } }
+        }
+      }
+    });
+
+    const result = trainers.map(t => ({
+      id: t.id,
+      name: t.name,
+      email: t.user?.email,
+      specialization: t.specialization,
+      phone: t.phone,
+      salary: t.salary,
+      totalClasses: t.Renamedclass.length,
+      activeClasses: t.Renamedclass.filter(c => c.status === 'active').length,
+      totalEnrollments: t.Renamedclass.reduce((sum, c) => sum + c.enrollment.length, 0),
+      memberCheckIns: t.attendance.length,
+      attendanceDays: t.trainerattendance.length,
+      presentDays: t.trainerattendance.filter(a => a.status === 'PRESENT').length,
+      absentDays: t.trainerattendance.filter(a => a.status === 'ABSENT').length,
+      classes: t.Renamedclass.map(c => ({
+        id: c.id, name: c.name, schedule: c.schedule,
+        capacity: c.maxCapacity, enrolled: c.enrollment.length,
+        fee: c.fee, status: c.status
+      }))
+    }));
+
+    // Specialization distribution
+    const specDist = trainers.reduce((acc, t) => {
+      const spec = t.specialization || 'General';
+      acc[spec] = (acc[spec] || 0) + 1;
+      return acc;
+    }, {});
+    const specializationDist = Object.entries(specDist).map(([name, count]) => ({ name, count }));
+
+    res.json({ trainers: result, specializationDist });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Export Data
 router.get('/export/:type', auth, authorize('ADMIN'), async (req, res) => {
   try {

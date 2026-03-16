@@ -22,6 +22,7 @@ import Plans from './pages/Plans';
 import Users from './pages/Users';
 import DietPlans from './pages/DietPlans';
 import Progress from './pages/Progress';
+import PaymentVerify from './pages/PaymentVerify';
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
@@ -36,6 +37,7 @@ function App() {
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-payment/:paymentId" element={<PaymentVerify />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Navigate to="/dashboard" />} />
             <Route path="dashboard" element={<Dashboard />} />
@@ -55,6 +57,7 @@ function App() {
             <Route path="hr" element={<HR />} />
             <Route path="progress" element={<Progress />} />
             <Route path="diet-plans" element={<DietPlans />} />
+            <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>

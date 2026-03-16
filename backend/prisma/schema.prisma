@@ -90,6 +90,22 @@ model enrollment {
   @@index([memberId], map: "Enrollment_memberId_idx")
 }
 
+model device {
+  id          String   @id
+  name        String
+  type        String
+  location    String
+  ipAddress   String?
+  macAddress  String?
+  status      String   @default("online")
+  lastSeen    DateTime @default(now())
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+  @@index([type])
+}
+
 model equipment {
   id                String    @id
   name              String
@@ -155,6 +171,7 @@ model member {
   cnic           String?      @unique(map: "Member_cnic_key")
   medicalHistory String?      @db.LongText
   photo          String?
+  whatsapp       String?
   trainerId      String?
   weight         Decimal?
   attendance     attendance[]
@@ -280,6 +297,40 @@ model settings {
   whatsappApiUrl         String?
   whatsappPhoneId        String?
   twilioTestNumber       String?
+  // Gym profile
+  gymAddress             String?  @db.Text
+  gymPhone               String?
+  gymEmail               String?
+  gymWebsite             String?
+  gymTagline             String?
+  currency               String?  @default("PKR")
+  currencySymbol         String?  @default("Rs")
+  timezone               String?  @default("Asia/Karachi")
+  // Payment slip
+  paymentSlipHeader      String?  @db.Text
+  paymentSlipFooter      String?  @db.Text
+  paymentSlipNotes       String?  @db.Text
+  showQrOnSlip           Boolean  @default(true)
+  showLogoOnSlip         Boolean  @default(true)
+  slipPrimaryColor       String?  @default("#3b82f6")
+  bankName               String?
+  bankAccountTitle       String?
+  bankAccountNumber      String?
+  bankIban               String?
+  // Membership
+  membershipGraceDays    Int?     @default(3)
+  autoRenewMembership    Boolean  @default(false)
+  membershipReminderDays Int?     @default(7)
+  // Tax
+  taxEnabled             Boolean  @default(false)
+  taxRate                Decimal? @default(0)
+  taxLabel               String?  @default("GST")
+  taxNumber              String?
+  // Security
+  sessionTimeoutMins     Int?     @default(60)
+  requirePasswordChange  Boolean  @default(false)
+  // Welcome message
+  welcomeMessageTemplate String?  @db.Text
 }
 
 model staff {
@@ -325,19 +376,34 @@ model staffattendance {
 }
 
 model trainer {
-  id             String         @id
-  userId         String         @unique(map: "Trainer_userId_key")
-  name           String
-  specialization String?
-  phone          String
-  availability   String?        @db.LongText
-  salary         Decimal        @db.Decimal(10, 0)
-  attendance     attendance[]
-  Renamedclass   Renamedclass[]
-  user           user           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Trainer_userId_fkey")
-  dietplan       dietplan[]
+  id                 String               @id
+  userId             String               @unique(map: "Trainer_userId_key")
+  name               String
+  specialization     String?
+  phone              String
+  availability       String?              @db.LongText
+  salary             Decimal              @db.Decimal(10, 0)
+  attendance         attendance[]
+  Renamedclass       Renamedclass[]
+  user               user                 @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Trainer_userId_fkey")
+  dietplan           dietplan[]
+  trainerattendance  trainerattendance[]
 
   @@index([userId], map: "Trainer_userId_idx")
+}
+
+model trainerattendance {
+  id         String                    @id
+  trainerId  String
+  date       DateTime
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     trainerattendance_status  @default(PRESENT)
+  notes      String?
+  trainer    trainer                   @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([trainerId])
 }
 
 model transaction {
@@ -523,6 +589,13 @@ enum payment_method {
 }
 
 enum staffattendance_status {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LATE
+}
+
+enum trainerattendance_status {
   PRESENT
   ABSENT
   HALF_DAY

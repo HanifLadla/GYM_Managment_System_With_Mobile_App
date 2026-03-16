@@ -37,10 +37,11 @@ const io = new Server(server, {
 });
 
 // Middleware
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use(morgan('dev'));
+app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
 // Rate limiting
 const limiter = rateLimit({

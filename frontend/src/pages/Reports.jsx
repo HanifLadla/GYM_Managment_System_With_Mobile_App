@@ -9,8 +9,8 @@ import { useAlert } from '../hooks/useAlert';
 import { AlertContainer } from '../components/AlertCard';
 import { 
   FiTrendingUp, FiUsers, FiDollarSign, FiActivity, FiDownload, 
-  FiCalendar, FiFilter, FiRefreshCw, FiBarChart2, FiPieChart,
-  FiTrendingDown, FiUserCheck, FiClock, FiTarget
+  FiCalendar, FiRefreshCw, FiBarChart2,
+  FiTrendingDown, FiUserCheck, FiClock, FiAward, FiCheckCircle, FiXCircle
 } from 'react-icons/fi';
 
 const Reports = () => {
@@ -22,7 +22,8 @@ const Reports = () => {
     analytics: null,
     financial: null,
     members: null,
-    staff: null
+    staff: null,
+    trainers: null
   });
   const { alerts, addAlert, removeAlert } = useAlert();
 
@@ -41,18 +42,20 @@ const Reports = () => {
         period
       };
 
-      const [analytics, financial, members, staff] = await Promise.all([
+      const [analytics, financial, members, staff, trainers] = await Promise.all([
         axios.get('/api/reports/analytics', { params }),
         axios.get('/api/reports/financial', { params }),
         axios.get('/api/reports/members', { params }),
-        axios.get('/api/reports/staff', { params })
+        axios.get('/api/reports/staff', { params }),
+        axios.get('/api/reports/trainers', { params })
       ]);
 
       setData({
         analytics: analytics.data,
         financial: financial.data,
         members: members.data,
-        staff: staff.data
+        staff: staff.data,
+        trainers: trainers.data
       });
     } catch (error) {
       addAlert('Failed to load reports', 'error');
@@ -92,7 +95,8 @@ const Reports = () => {
     { id: 'overview', label: 'Overview', icon: FiBarChart2 },
     { id: 'financial', label: 'Financial', icon: FiDollarSign },
     { id: 'members', label: 'Members', icon: FiUsers },
-    { id: 'staff', label: 'Staff', icon: FiUserCheck }
+    { id: 'staff', label: 'Staff', icon: FiUserCheck },
+    { id: 'trainers', label: 'Trainers', icon: FiAward }
   ];
 
   const OverviewTab = () => {
@@ -338,6 +342,140 @@ const Reports = () => {
     );
   };
 
+  const TrainersTab = () => {
+    if (!data.trainers) return <div>Loading...</div>;
+    const { trainers, specializationDist } = data.trainers;
+
+    return (
+      <div className="space-y-6">
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Trainers', value: trainers.length, color: 'blue' },
+            { label: 'Total Classes', value: trainers.reduce((s, t) => s + t.totalClasses, 0), color: 'green' },
+            { label: 'Total Enrollments', value: trainers.reduce((s, t) => s + t.totalEnrollments, 0), color: 'purple' },
+            { label: 'Member Check-ins', value: trainers.reduce((s, t) => s + t.memberCheckIns, 0), color: 'orange' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow">
+              <div className={`text-2xl font-bold text-${color}-600 dark:text-${color}-400`}>{value}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Specialization distribution */}
+        {specializationDist.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">Specialization Distribution</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={specializationDist}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#8b5cf6" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Per-trainer table */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+          <div className="p-4 border-b dark:border-gray-700">
+            <h3 className="font-semibold dark:text-white">Trainer Performance</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  {['Trainer', 'Specialization', 'Classes', 'Enrollments', 'Check-ins', 'Attendance', 'Salary'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y dark:divide-gray-700">
+                {trainers.map((t) => {
+                  const attRate = t.attendanceDays > 0 ? Math.round((t.presentDays / t.attendanceDays) * 100) : null;
+                  return (
+                    <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold">
+                            {t.name.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="font-medium dark:text-white">{t.name}</div>
+                            <div className="text-xs text-gray-400">{t.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-1 dark:text-gray-300">
+                          <FiAward className="w-3 h-3 text-yellow-500" />
+                          {t.specialization || 'General'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 dark:text-white font-semibold">{t.totalClasses}</td>
+                      <td className="px-4 py-3 dark:text-white">{t.totalEnrollments}</td>
+                      <td className="px-4 py-3 dark:text-white">{t.memberCheckIns}</td>
+                      <td className="px-4 py-3">
+                        {attRate !== null ? (
+                          <span className={`flex items-center gap-1 font-medium ${
+                            attRate >= 80 ? 'text-green-600' : attRate >= 60 ? 'text-yellow-600' : 'text-red-600'
+                          }`}>
+                            {attRate >= 80 ? <FiCheckCircle className="w-3 h-3" /> : <FiXCircle className="w-3 h-3" />}
+                            {attRate}%
+                          </span>
+                        ) : <span className="text-gray-400 text-xs">No data</span>}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-blue-600 dark:text-blue-400">
+                        Rs {Number(t.salary).toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {trainers.length === 0 && (
+                  <tr><td colSpan={7} className="text-center py-8 text-gray-500 dark:text-gray-400">No trainers found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Classes breakdown */}
+        {trainers.some(t => t.classes.length > 0) && (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h3 className="font-semibold dark:text-white mb-4">Classes Breakdown</h3>
+            <div className="space-y-4">
+              {trainers.filter(t => t.classes.length > 0).map(t => (
+                <div key={t.id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold">{t.name.charAt(0)}</div>
+                    <span className="font-medium dark:text-white text-sm">{t.name}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pl-8">
+                    {t.classes.map(c => (
+                      <div key={c.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-xs">
+                        <div className="font-medium dark:text-white">{c.name}</div>
+                        <div className="text-gray-500 dark:text-gray-400 mt-1">{c.schedule || 'No schedule'}</div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-blue-600 dark:text-blue-400">{c.enrolled}/{c.capacity} enrolled</span>
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${
+                            c.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
+                          }`}>{c.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const StaffTab = () => {
     if (!data.staff) return <div>Loading...</div>;
 
@@ -481,6 +619,7 @@ const Reports = () => {
             {activeTab === 'financial' && <FinancialTab />}
             {activeTab === 'members' && <MembersTab />}
             {activeTab === 'staff' && <StaffTab />}
+            {activeTab === 'trainers' && <TrainersTab />}
           </>
         )}
       </div>

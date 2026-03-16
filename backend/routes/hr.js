@@ -3,25 +3,49 @@ const { PrismaClient } = require('@prisma/client');
 const { auth, authorize } = require('../middleware/auth');
 const Joi = require('joi');
 const crypto = require('crypto');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Multer setup for staff photos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../uploads/staff');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${crypto.randomUUID()}${path.extname(file.originalname)}`);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+// Photo upload endpoint
+router.post('/staff/upload-photo', auth, authorize('ADMIN'), upload.single('photo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ url: `/uploads/staff/${req.file.filename}` });
+});
 
 // Validation schemas
 const staffSchema = Joi.object({
   name: Joi.string().min(2).max(100).required(),
   email: Joi.string().email().required(),
   phone: Joi.string().min(10).max(15).required(),
-  cnic: Joi.string().min(13).max(15).optional(),
-  address: Joi.string().max(500).optional(),
-  dob: Joi.date().optional(),
-  gender: Joi.string().valid('Male', 'Female', 'Other').optional(),
+  cnic: Joi.string().min(13).max(15).optional().allow(''),
+  address: Joi.string().max(500).optional().allow(''),
+  dob: Joi.date().optional().allow('', null),
+  gender: Joi.string().valid('Male', 'Female', 'Other').optional().allow(''),
+  joinDate: Joi.date().optional().allow('', null),
+  photo: Joi.string().optional().allow('', null),
   department: Joi.string().min(2).max(50).required(),
   designation: Joi.string().min(2).max(50).required(),
   salary: Joi.number().positive().required(),
   commission: Joi.number().min(0).default(0),
-  bankAccount: Joi.string().optional(),
-  emergencyContact: Joi.object().optional()
+  bankAccount: Joi.string().optional().allow('', null),
+  emergencyContact: Joi.alternatives().try(Joi.object(), Joi.string()).optional().allow('', null)
 });
 
 const payrollSchema = Joi.object({
@@ -60,7 +84,8 @@ router.post('/staff', auth, authorize('ADMIN'), async (req, res) => {
       data: {
         ...value,
         id: crypto.randomUUID(),
-        joinDate: new Date()
+        joinDate: value.joinDate ? new Date(value.joinDate) : new Date(),
+        ...(value.dob ? { dob: new Date(value.dob) } : {}),
       }
     });
     
@@ -128,9 +153,15 @@ router.get('/staff/:id', auth, authorize('ADMIN'), async (req, res) => {
 
 router.put('/staff/:id', auth, authorize('ADMIN'), async (req, res) => {
   try {
+    const { emergencyContactName, emergencyContactPhone, ...body } = req.body;
+    const data = {
+      ...body,
+      ...(body.dob ? { dob: new Date(body.dob) } : { dob: null }),
+      ...(body.joinDate ? { joinDate: new Date(body.joinDate) } : {}),
+    };
     const staff = await prisma.staff.update({
       where: { id: req.params.id },
-      data: req.body
+      data
     });
     res.json(staff);
   } catch (error) {
@@ -153,10 +184,16 @@ router.delete('/staff/:id', auth, authorize('ADMIN'), async (req, res) => {
 // Attendance Management
 router.post('/attendance', auth, authorize('ADMIN'), async (req, res) => {
   try {
+    const { staffId, date, status, checkIn, checkOut, notes } = req.body;
     const attendance = await prisma.staffattendance.create({
       data: {
-        ...req.body,
-        id: crypto.randomUUID()
+        id: crypto.randomUUID(),
+        staffId,
+        date: new Date(date),
+        status: status || 'PRESENT',
+        ...(checkIn ? { checkIn: new Date(`${date}T${checkIn}`) } : {}),
+        ...(checkOut ? { checkOut: new Date(`${date}T${checkOut}`) } : {}),
+        ...(notes ? { notes } : {})
       },
       include: { staff: true }
     });
@@ -209,13 +246,89 @@ router.put('/attendance/:id', auth, authorize('ADMIN'), async (req, res) => {
   }
 });
 
+// Trainer Attendance Management
+router.post('/trainer-attendance', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { trainerId, date, status, checkIn, checkOut, notes } = req.body;
+    if (!trainerId || !date) return res.status(400).json({ error: 'trainerId and date are required' });
+    const record = await prisma.trainerattendance.create({
+      data: {
+        id: crypto.randomUUID(),
+        trainerId,
+        date: new Date(date),
+        status: status || 'PRESENT',
+        ...(checkIn ? { checkIn: new Date(`${date}T${checkIn}`) } : {}),
+        ...(checkOut ? { checkOut: new Date(`${date}T${checkOut}`) } : {}),
+        ...(notes ? { notes } : {})
+      },
+      include: { trainer: true }
+    });
+    res.status(201).json(record);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/trainer-attendance', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { trainerId, startDate, endDate } = req.query;
+    const where = {
+      ...(trainerId && { trainerId }),
+      ...(startDate && endDate && { date: { gte: new Date(startDate), lte: new Date(endDate) } })
+    };
+    const records = await prisma.trainerattendance.findMany({
+      where,
+      include: { trainer: true },
+      orderBy: { date: 'desc' }
+    });
+    res.json(records);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/trainer-attendance/:id', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    const { status, checkIn, checkOut, notes, date } = req.body;
+    const existing = await prisma.trainerattendance.findUnique({ where: { id: req.params.id } });
+    const baseDate = date || existing.date.toISOString().split('T')[0];
+    const record = await prisma.trainerattendance.update({
+      where: { id: req.params.id },
+      data: {
+        ...(status && { status }),
+        ...(checkIn ? { checkIn: new Date(`${baseDate}T${checkIn}`) } : { checkIn: null }),
+        ...(checkOut ? { checkOut: new Date(`${baseDate}T${checkOut}`) } : { checkOut: null }),
+        ...(notes !== undefined && { notes })
+      },
+      include: { trainer: true }
+    });
+    res.json(record);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/trainer-attendance/:id', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    await prisma.trainerattendance.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Leave Management
 router.post('/leaves', auth, async (req, res) => {
   try {
+    const { staffId, type, startDate, endDate, reason } = req.body;
     const leave = await prisma.leave.create({
       data: {
-        ...req.body,
-        id: crypto.randomUUID()
+        id: crypto.randomUUID(),
+        staffId,
+        type,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        reason
       },
       include: { staff: true }
     });
@@ -463,6 +576,7 @@ router.get('/stats', auth, authorize('ADMIN'), async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayAttendance = await prisma.staffattendance.count({ where: { date: { gte: today } } });
+    const todayTrainerAttendance = await prisma.trainerattendance.count({ where: { date: { gte: today } } });
     const pendingPayroll = await prisma.payroll.count({ where: { status: 'pending' } });
     
     // Monthly salary expense from actual payroll records only
@@ -509,7 +623,7 @@ router.get('/stats', auth, authorize('ADMIN'), async (req, res) => {
       totalStaff: totalEmployees,
       totalTrainers,
       pendingLeaves, 
-      todayAttendance, 
+      todayAttendance: todayAttendance + todayTrainerAttendance, 
       pendingPayroll,
       monthlySalaryExpense: monthlySalaryExpense,
       estimatedTrainerSalaries,

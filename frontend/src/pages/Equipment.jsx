@@ -6,13 +6,12 @@ import AnimatedModal from '../components/AnimatedModal';
 import { useAlert } from '../hooks/useAlert';
 import { AlertContainer } from '../components/AlertCard';
 import { 
-  FiPlus, FiEdit, FiTrash2, FiEye, FiSearch, FiTool, FiAlertTriangle,
+  FiPlus, FiEdit, FiTrash2, FiEye, FiSearch, FiTool,
   FiMoreVertical, FiPackage, FiActivity, FiCalendar, FiDollarSign
 } from 'react-icons/fi';
 
 const Equipment = () => {
   const [equipment, setEquipment] = useState([]);
-  const [lowStock, setLowStock] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
@@ -30,7 +29,6 @@ const Equipment = () => {
 
   useEffect(() => {
     fetchEquipment();
-    fetchLowStock();
   }, [searchTerm]);
 
   const fetchEquipment = async () => {
@@ -43,18 +41,6 @@ const Equipment = () => {
       setEquipment(filtered);
     } catch (error) {
       addAlert('Failed to load equipment', 'error');
-    }
-  };
-
-  const fetchLowStock = async () => {
-    try {
-      const { data } = await axios.get('/api/equipment/low-stock?threshold=5');
-      setLowStock(data);
-      if (data.length > 0) {
-        addAlert(`${data.length} items low on stock!`, 'warning', 10000);
-      }
-    } catch (error) {
-      console.error('Failed to load low stock');
     }
   };
 
@@ -193,13 +179,10 @@ const Equipment = () => {
     },
     { 
       header: 'Status', 
-      render: (row) => row.quantityAvailable < 5 ? (
-        <span className="text-red-600 flex items-center gap-1 text-sm font-medium">
-          <FiAlertTriangle className="w-4 h-4" /> Low Stock
-        </span>
-      ) : (
-        <span className="text-green-600 flex items-center gap-1 text-sm font-medium">
-          <FiActivity className="w-4 h-4" /> Available
+      render: (row) => (
+        <span className={`flex items-center gap-1 text-sm font-medium ${row.quantityAvailable < 5 ? 'text-red-600' : 'text-green-600'}`}>
+          <FiActivity className="w-4 h-4" />
+          {row.quantityAvailable < 5 ? 'Low Stock' : 'Available'}
         </span>
       )
     },
@@ -273,20 +256,6 @@ const Equipment = () => {
           <FiPlus /> Add Equipment
         </motion.button>
       </div>
-
-      {/* Low Stock Alert */}
-      {lowStock.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4"
-        >
-          <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
-            <FiAlertTriangle className="w-5 h-5" />
-            <span className="font-semibold">{lowStock.length} items are low on stock</span>
-          </div>
-        </motion.div>
-      )}
 
       {/* Search */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
