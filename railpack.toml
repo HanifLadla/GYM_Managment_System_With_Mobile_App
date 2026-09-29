@@ -1,0 +1,17 @@
+[build]
+cmd = "npm run install-all && npm run build"
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "steps": {
+    "build": {
+      "commands": [
+        "...",
+        "npm run build"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "npm start"
+  }
+}
