@@ -44,7 +44,7 @@ body {
 .dark input:not([class*="text-"]),
 .dark select:not([class*="text-"]),
 .dark textarea:not([class*="text-"]) {
-  color: #ffffff;
+  color: #6b7280;
 }
 
 .dark input::placeholder,
