@@ -6,7 +6,7 @@ import {
   FiHome, FiUsers, FiActivity, FiDollarSign, FiSettings, FiLogOut,
   FiBook, FiUserCheck, FiCalendar, FiPackage, FiBarChart2, FiCpu,
   FiBriefcase, FiCreditCard, FiShield, FiChevronDown, FiChevronRight,
-  FiHeart, FiMoon, FiSun, FiChevronsLeft, FiChevronsRight
+  FiMoon, FiSun, FiChevronsLeft, FiChevronsRight
 } from 'react-icons/fi';
 
 const Layout = () => {
@@ -44,9 +44,7 @@ const Layout = () => {
       title: 'Members',
       items: [
         { path: '/members', icon: FiUsers, label: 'Members', roles: ['ADMIN'] },
-        { path: '/diet-plans', icon: FiHeart, label: 'Diet Plans', roles: ['ADMIN', 'TRAINER'] },
         { path: '/attendance', icon: FiActivity, label: 'Attendance' },
-        { path: '/progress', icon: FiBarChart2, label: 'Progress' }
       ]
     },
     operations: {

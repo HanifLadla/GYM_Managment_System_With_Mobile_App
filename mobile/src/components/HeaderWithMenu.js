@@ -8,7 +8,7 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useAuth } from '../context/AuthContext';
 import { ROLES, hasRole } from '../utils/roles';
 

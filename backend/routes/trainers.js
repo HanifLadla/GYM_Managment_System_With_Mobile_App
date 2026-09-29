@@ -55,9 +55,12 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     const trainers = await prisma.trainer.findMany({
-      include: { user: { select: { email: true } }, Renamedclass: true }
+      include: { 
+        user: { select: { email: true } }, 
+        Renamedclass: { include: { enrollment: true } }
+      }
     });
-    res.json(trainers);
+    res.json(trainers.map(t => ({ ...t, classes: t.Renamedclass })));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -67,10 +70,13 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const trainer = await prisma.trainer.findUnique({
       where: { id: req.params.id },
-      include: { user: true, Renamedclass: true }
+      include: { 
+        user: true, 
+        Renamedclass: { include: { enrollment: true } }
+      }
     });
     if (!trainer) return res.status(404).json({ error: 'Trainer not found' });
-    res.json(trainer);
+    res.json({ ...trainer, classes: trainer.Renamedclass });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -78,7 +84,7 @@ router.get('/:id', auth, async (req, res) => {
 
 router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
   try {
-    const { name, specialization, phone, salary, availability } = req.body;
+    const { name, specialization, phone, salary, availability, status } = req.body;
     const trainer = await prisma.trainer.update({
       where: { id: req.params.id },
       data: { 
@@ -86,7 +92,8 @@ router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
         specialization, 
         phone, 
         ...(salary && { salary: parseFloat(salary) }),
-        availability 
+        availability,
+        ...(status && { status })
       }
     });
     res.json(trainer);

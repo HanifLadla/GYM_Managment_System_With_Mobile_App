@@ -3,6 +3,20 @@ const { sendEmail } = require('./email');
 const { sendExpiryReminder, sendBirthdayWish, sendFeesReminder } = require('./sms');
 const prisma = new PrismaClient();
 
+async function autoExpireMembers() {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { count } = await prisma.member.updateMany({
+      where: { expiryDate: { lt: today }, status: 'active' },
+      data: { status: 'inactive' }
+    });
+    if (count > 0) console.log(`Auto-expired ${count} members`);
+  } catch (error) {
+    console.error('Auto-expire error:', error.message);
+  }
+}
+
 async function checkOverdueFees() {
   try {
     const today = new Date();
@@ -77,4 +91,4 @@ async function checkBirthdays() {
   }
 }
 
-module.exports = { checkOverdueFees, checkExpiringMemberships, checkBirthdays };
+module.exports = { autoExpireMembers, checkOverdueFees, checkExpiringMemberships, checkBirthdays };

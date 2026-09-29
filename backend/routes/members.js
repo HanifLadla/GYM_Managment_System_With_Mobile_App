@@ -39,30 +39,47 @@ const memberSchema = Joi.object({
   name: Joi.string().required(),
   phone: Joi.string().required(),
   address: Joi.string().optional().allow(''),
-  dob: Joi.date().optional().allow(null),
+  dob: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
   gender: Joi.string().optional().allow(''),
   cnic: Joi.string().optional().allow(''),
   monthlyFee: Joi.number().required(),
   planId: Joi.string().optional().allow(''),
-  planType: Joi.string().valid('BASIC', 'PREMIUM').required(),
+  planType: Joi.string().valid('BASIC', 'PREMIUM').optional().default('BASIC'),
   photo: Joi.string().optional().allow('', null),
   whatsapp: Joi.string().optional().allow('', null),
-  weight: Joi.number().optional().allow(null, ''),
-  bmi: Joi.number().optional().allow(null, ''),
-  bodyFat: Joi.number().optional().allow(null, ''),
+  weight: Joi.alternatives().try(Joi.number(), Joi.string().allow('', null)).optional(),
+  bmi: Joi.alternatives().try(Joi.number(), Joi.string().allow('', null)).optional(),
+  bodyFat: Joi.alternatives().try(Joi.number(), Joi.string().allow('', null)).optional(),
   medicalHistory: Joi.string().optional().allow('', null),
   trainerId: Joi.string().optional().allow('', null),
   status: Joi.string().optional().allow(''),
-  expiryDate: Joi.date().optional().allow(null, ''),
+  expiryDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
   membershipDuration: Joi.number().optional().allow(null),
   membershipDiscount: Joi.number().optional().allow(null)
 });
 
-// Photo upload endpoint
-router.post('/upload-photo', auth, authorize('ADMIN'), upload.single('photo'), (req, res) => {
+// Photo upload — before /:id routes
+router.post('/upload-photo', auth, upload.single('photo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const photoUrl = `/uploads/members/${req.file.filename}`;
-  res.json({ photoUrl });
+  res.json({ photoUrl: `/uploads/members/${req.file.filename}` });
+});
+
+// Export CSV — before /:id routes
+router.get('/export', auth, authorize('ADMIN'), async (req, res) => {
+  try {
+    const members = await prisma.member.findMany({
+      include: { user: { select: { email: true } }, membership: true }
+    });
+    const csv = [
+      'Name,Email,Phone,CNIC,Status,Plan Type,Monthly Fee,Join Date,Expiry Date',
+      ...members.map(m => [m.name, m.user?.email||'', m.phone, m.cnic||'', m.status, m.membership?.[0]?.planType||'BASIC', m.monthlyFee, new Date(m.joinDate).toLocaleDateString(), new Date(m.expiryDate).toLocaleDateString()].join(','))
+    ].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=members.csv');
+    res.send(csv);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 router.post('/', auth, authorize('ADMIN'), async (req, res) => {
@@ -178,6 +195,7 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
   }
 });
 
+// ---- CRUD ----
 router.get('/', auth, async (req, res) => {
   try {
     const { page = 1, limit = 10, search = '', status = 'all', planType = 'all', planId = 'all' } = req.query;
@@ -187,10 +205,10 @@ router.get('/', auth, async (req, res) => {
     
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
         { phone: { contains: search } },
         { cnic: { contains: search } },
-        { user: { email: { contains: search, mode: 'insensitive' } } }
+        { user: { email: { contains: search } } }
       ];
     }
     
@@ -325,43 +343,10 @@ router.put('/:id', auth, authorize('ADMIN'), async (req, res) => {
 
 router.delete('/:id', auth, authorize('ADMIN'), async (req, res) => {
   try {
-    const member = await prisma.member.findUnique({
-      where: { id: req.params.id },
-      select: { userId: true }
-    });
+    const member = await prisma.member.findUnique({ where: { id: req.params.id }, select: { userId: true } });
     if (!member) return res.status(404).json({ error: 'Member not found' });
-    // Deleting the user cascades down and removes the member + all related records
     await prisma.user.delete({ where: { id: member.userId } });
     res.json({ message: 'Member deleted' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/export', auth, authorize('ADMIN'), async (req, res) => {
-  try {
-    const members = await prisma.member.findMany({
-      include: { user: { select: { email: true } }, membership: true }
-    });
-    
-    const csv = [
-      'Name,Email,Phone,CNIC,Status,Plan Type,Monthly Fee,Join Date,Expiry Date',
-      ...members.map(m => [
-        m.name,
-        m.user?.email || '',
-        m.phone,
-        m.cnic || '',
-        m.status,
-        m.membership?.[0]?.planType || 'BASIC',
-        m.monthlyFee,
-        new Date(m.joinDate).toLocaleDateString(),
-        new Date(m.expiryDate).toLocaleDateString()
-      ].join(','))
-    ].join('\n');
-    
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=members.csv');
-    res.send(csv);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

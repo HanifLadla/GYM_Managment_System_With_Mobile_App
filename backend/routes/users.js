@@ -60,9 +60,9 @@ router.get('/', auth, authorize('ADMIN'), async (req, res) => {
     
     if (search) {
       where.OR = [
-        { email: { contains: search, mode: 'insensitive' } },
-        { member: { name: { contains: search, mode: 'insensitive' } } },
-        { trainer: { name: { contains: search, mode: 'insensitive' } } }
+        { email: { contains: search } },
+        { member: { name: { contains: search } } },
+        { trainer: { name: { contains: search } } }
       ];
     }
     

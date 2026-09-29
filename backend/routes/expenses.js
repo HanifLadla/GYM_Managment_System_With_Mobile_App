@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { auth, authorize } = require('../middleware/auth');
 const Joi = require('joi');
+const crypto = require('crypto');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -80,6 +81,7 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
     if (!expenseAccount) {
       expenseAccount = await prisma.account.create({
         data: {
+          id: crypto.randomUUID(),
           accountName: accountNames[category],
           type: 'EXPENSE',
           balance: 0,
@@ -90,6 +92,7 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
     
     // Create transaction with metadata
     const transactionData = {
+      id: crypto.randomUUID(),
       accountId: expenseAccount.id,
       amount: parseFloat(amount),
       type: 'DEBIT',

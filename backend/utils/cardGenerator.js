@@ -14,6 +14,7 @@ async function generateCard(memberId) {
   
   const card = await prisma.card.create({
     data: {
+      id: require('crypto').randomUUID(),
       memberId,
       cardNumber,
       qrCodeUrl

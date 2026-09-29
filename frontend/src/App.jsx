@@ -20,8 +20,6 @@ import Devices from './pages/Devices';
 import HR from './pages/HR';
 import Plans from './pages/Plans';
 import Users from './pages/Users';
-import DietPlans from './pages/DietPlans';
-import Progress from './pages/Progress';
 import PaymentVerify from './pages/PaymentVerify';
 
 const PrivateRoute = ({ children }) => {
@@ -55,8 +53,6 @@ function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="devices" element={<Devices />} />
             <Route path="hr" element={<HR />} />
-            <Route path="progress" element={<Progress />} />
-            <Route path="diet-plans" element={<DietPlans />} />
             <Route path="users" element={<Users />} />
             <Route path="settings" element={<Settings />} />
           </Route>

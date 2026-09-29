@@ -8,7 +8,7 @@ import {
 import { 
   FiUsers, FiDollarSign, FiActivity, FiAlertCircle, FiTrendingUp, 
   FiTrendingDown, FiClock, FiUserCheck, FiSettings, FiPackage,
-  FiCalendar, FiStar, FiTarget, FiAward, FiRefreshCw
+  FiCalendar, FiStar, FiTarget, FiAward, FiRefreshCw, FiPieChart
 } from 'react-icons/fi';
 import { AuthContext } from '../context/AuthContext';
 import { useAlert } from '../hooks/useAlert';
@@ -87,12 +87,12 @@ const Dashboard = () => {
       trendUp: stats?.overview.revenueGrowth >= 0
     },
     { 
-      title: 'Today Attendance', 
-      value: stats?.overview.todayAttendance || 0, 
-      icon: FiActivity, 
-      color: 'bg-gradient-to-r from-purple-500 to-purple-600',
-      trend: '+8%',
-      trendUp: true
+      title: 'Monthly Expenses', 
+      value: `Rs ${(stats?.overview.monthlyExpenses || 0).toLocaleString()}`, 
+      icon: FiPieChart, 
+      color: 'bg-gradient-to-r from-orange-500 to-orange-600',
+      trend: 'This month',
+      trendUp: false
     },
     { 
       title: 'Active Staff', 
@@ -110,14 +110,6 @@ const Dashboard = () => {
       trend: '-5%',
       trendUp: false
     },
-    { 
-      title: 'Equipment Items', 
-      value: stats?.overview.totalEquipment || 0, 
-      icon: FiPackage, 
-      color: 'bg-gradient-to-r from-orange-500 to-orange-600',
-      trend: `${stats?.overview.lowStockEquipment || 0} low stock`,
-      trendUp: (stats?.overview.lowStockEquipment || 0) === 0
-    }
   ];
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
@@ -149,7 +141,7 @@ const Dashboard = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {statCards.map((card, idx) => (
           <StatsCard
             key={idx}

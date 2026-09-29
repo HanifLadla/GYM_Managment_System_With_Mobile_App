@@ -1,0 +1,16 @@
+-- AlterTable
+ALTER TABLE `settings` ADD COLUMN `dueMessageTemplate` TEXT NULL,
+    ADD COLUMN `emailHost` VARCHAR(191) NULL DEFAULT 'smtp.gmail.com',
+    ADD COLUMN `emailPass` VARCHAR(191) NULL,
+    ADD COLUMN `emailPort` INTEGER NULL DEFAULT 587,
+    ADD COLUMN `emailUser` VARCHAR(191) NULL,
+    ADD COLUMN `enableEmail` BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN `enableSMS` BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN `enableWhatsApp` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `renewalMessageTemplate` TEXT NULL,
+    ADD COLUMN `twilioAccountSid` VARCHAR(191) NULL,
+    ADD COLUMN `twilioAuthToken` VARCHAR(191) NULL,
+    ADD COLUMN `twilioPhoneNumber` VARCHAR(191) NULL,
+    ADD COLUMN `whatsappApiKey` VARCHAR(191) NULL,
+    ADD COLUMN `whatsappApiUrl` VARCHAR(191) NULL,
+    ADD COLUMN `whatsappPhoneId` VARCHAR(191) NULL;

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://192.168.1.105:5000/api'; // Replace with your backend IP
+const BASE_URL = 'https://gym.themedscalemarketing.com/api';
 
 class ApiService {
   constructor() {

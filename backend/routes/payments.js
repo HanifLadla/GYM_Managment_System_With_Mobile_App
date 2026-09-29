@@ -53,23 +53,68 @@ router.post('/', auth, authorize('ADMIN'), async (req, res) => {
     
     let targetMembershipId = membershipId;
     
-    // If memberId is provided instead of membershipId, find the active membership
+    // If memberId is provided instead of membershipId, find or create the right membership
     if (memberId && !membershipId) {
-      const membership = await prisma.membership.findFirst({
+      const latestMembership = await prisma.membership.findFirst({
         where: { memberId },
         orderBy: { startDate: 'desc' }
       });
       
-      if (!membership) {
+      if (!latestMembership) {
         return res.status(404).json({ error: 'No membership found for this member' });
       }
-      
-      // Check if already paid
-      if (membership.paymentStatus === 'PAID') {
-        return res.status(400).json({ error: 'Payment already completed for this membership period' });
+
+      const now = new Date();
+      const isPaidAndActive = latestMembership.paymentStatus === 'PAID' &&
+        new Date(latestMembership.endDate) >= now;
+
+      const isPaidAndExpired = latestMembership.paymentStatus === 'PAID' &&
+        new Date(latestMembership.endDate) < now;
+
+      if (isPaidAndActive) {
+        // Fee already paid for the current active period
+        const paidUntil = new Date(latestMembership.endDate).toLocaleDateString('en-PK', {
+          day: 'numeric', month: 'long', year: 'numeric'
+        });
+        return res.status(409).json({
+          error: `Fee already paid for this membership period (valid until ${paidUntil})`
+        });
       }
-      
-      targetMembershipId = membership.id;
+
+      if (isPaidAndExpired) {
+        // Renewal — create a new membership period starting today
+        const member = await prisma.member.findUnique({ where: { id: memberId } });
+        const durationMonths = latestMembership.duration || 1;
+        const startDate = now;
+        const endDate = new Date(now);
+        endDate.setMonth(endDate.getMonth() + durationMonths);
+
+        const crypto = require('crypto');
+        const newMembership = await prisma.membership.create({
+          data: {
+            id: crypto.randomUUID(),
+            memberId,
+            planId: latestMembership.planId || null,
+            planType: latestMembership.planType || 'BASIC',
+            startDate,
+            endDate,
+            duration: durationMonths,
+            feeAmount: member.monthlyFee,
+            discount: latestMembership.discount || 0,
+            paymentStatus: 'PENDING'
+          }
+        });
+
+        // Update member expiry date and reactivate
+        await prisma.member.update({
+          where: { id: memberId },
+          data: { expiryDate: endDate, status: 'active' }
+        });
+
+        targetMembershipId = newMembership.id;
+      } else {
+        targetMembershipId = latestMembership.id;
+      }
     }
     
     if (!targetMembershipId) {

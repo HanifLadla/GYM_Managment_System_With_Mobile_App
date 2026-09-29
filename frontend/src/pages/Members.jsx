@@ -390,7 +390,9 @@ const Members = () => {
         } catch {}
       }
     } catch (error) {
-      addAlert(error.response?.data?.error || 'Failed to record payment', 'error');
+      const msg = error.response?.data?.error || 'Failed to record payment';
+      const isAlreadyPaid = error.response?.status === 409;
+      addAlert(msg, isAlreadyPaid ? 'warning' : 'error');
     }
   };
 
@@ -589,11 +591,22 @@ const Members = () => {
       header: 'Expiry', 
       render: (row) => {
         const expiry = new Date(row.expiryDate);
-        const isExpired = expiry < new Date();
+        const now = new Date();
+        const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+        const isExpired = daysLeft < 0;
+        const isWarning = !isExpired && daysLeft <= 5;
+        const cls = isExpired
+          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+          : isWarning
+          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
         return (
-          <span className={isExpired ? 'text-red-500 font-medium' : 'text-gray-600 dark:text-gray-400'}>
-            {expiry.toLocaleDateString()}
-          </span>
+          <div className={`px-2 py-1 rounded-lg text-xs font-medium text-center ${cls}`}>
+            <div>{expiry.toLocaleDateString()}</div>
+            <div className="mt-0.5">
+              {isExpired ? `Expired ${Math.abs(daysLeft)}d ago` : daysLeft === 0 ? 'Today' : `${daysLeft}d left`}
+            </div>
+          </div>
         );
       }
     },
@@ -753,47 +766,31 @@ const Members = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search members by name, phone, or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
-          </div>
-          <div>
-            <select
-              value={filters.planId}
-              onChange={(e) => setFilters({ ...filters, planId: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Plans</option>
-              {plans.map(plan => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.name} — Rs {Number(plan.price).toLocaleString()}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+            className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="suspended">Suspended</option>
+          </select>
+          <select
+            value={filters.planId}
+            onChange={(e) => setFilters({ ...filters, planId: e.target.value })}
+            className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Plans</option>
+            {plans.map(plan => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name} — Rs {Number(plan.price).toLocaleString()}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

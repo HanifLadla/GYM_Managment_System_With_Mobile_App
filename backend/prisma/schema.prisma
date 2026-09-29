@@ -383,6 +383,7 @@ model trainer {
   phone              String
   availability       String?              @db.LongText
   salary             Decimal              @db.Decimal(10, 0)
+  status             String               @default("active")
   attendance         attendance[]
   Renamedclass       Renamedclass[]
   user               user                 @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Trainer_userId_fkey")

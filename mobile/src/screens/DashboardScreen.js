@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Card, FAB } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LineChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import { apiService } from '../services/apiService';

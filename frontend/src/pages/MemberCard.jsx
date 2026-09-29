@@ -10,10 +10,12 @@ const MemberCard = () => {
   const { id } = useParams();
   const [member, setMember] = useState(null);
   const [card, setCard] = useState(null);
+  const [settings, setSettings] = useState({ currencySymbol: 'Rs' });
   const { alerts, addAlert, removeAlert } = useAlert();
 
   useEffect(() => {
     if (id) fetchMember();
+    axios.get('/api/settings').then(({ data }) => { if (data.id) setSettings(data); }).catch(() => {});
   }, [id]);
 
   const fetchMember = async () => {
@@ -95,8 +97,8 @@ const MemberCard = () => {
                 </div>
                 <div className="flex gap-4">
                   <div>
-                    <p className="text-xs opacity-75 uppercase tracking-wide">Card ID</p>
-                    <p className="text-sm font-mono">{card?.id || 'Not Generated'}</p>
+                    <p className="text-xs opacity-75 uppercase tracking-wide">Member ID</p>
+                    <p className="text-sm font-mono font-bold tracking-wide">{member.id}</p>
                   </div>
                   <div>
                     <p className="text-xs opacity-75 uppercase tracking-wide">Valid Until</p>
@@ -188,7 +190,7 @@ const MemberCard = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Member ID</p>
-            <p className="font-semibold dark:text-white">{member.id.slice(0, 8)}</p>
+            <p className="font-semibold dark:text-white">{member.id}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Phone</p>
@@ -200,7 +202,7 @@ const MemberCard = () => {
           </div>
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Fee</p>
-            <p className="font-semibold dark:text-white">${member.monthlyFee}</p>
+            <p className="font-semibold dark:text-white">{settings.currencySymbol || 'Rs'} {Number(member.monthlyFee).toLocaleString()}</p>
           </div>
         </div>
       </motion.div>

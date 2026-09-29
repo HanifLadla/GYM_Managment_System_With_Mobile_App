@@ -37,9 +37,13 @@ router.get('/stats', auth, async (req, res) => {
     }).catch(() => ({ _sum: { amount: 0 } }));
     
     const pendingPayments = await prisma.membership.count({ where: { paymentStatus: 'PENDING' } }).catch(() => 0);
-    // Equipment queries removed as equipment model doesn't exist in schema
     const totalEquipment = 0;
     const lowStockEquipment = 0;
+
+    const thisMonthExpenses = await prisma.transaction.aggregate({
+      where: { type: 'DEBIT', createdAt: { gte: thisMonth } },
+      _sum: { amount: true }
+    }).catch(() => ({ _sum: { amount: 0 } }));
 
     // Weekly Attendance Data
     const weeklyAttendance = [];
@@ -97,8 +101,7 @@ router.get('/stats', auth, async (req, res) => {
     const recentActivities = await prisma.attendance.findMany({
       take: 10,
       orderBy: { checkInTime: 'desc' },
-      include: { member: true },
-      where: { date: { gte: today } }
+      include: { member: true }
     }).catch(() => []);
 
     // Top Members by Attendance
@@ -181,7 +184,8 @@ router.get('/stats', auth, async (req, res) => {
         thisYearRevenue: thisYearRevenue._sum.amount || 0,
         pendingPayments,
         totalEquipment,
-        lowStockEquipment
+        lowStockEquipment,
+        monthlyExpenses: thisMonthExpenses._sum.amount || 0
       },
       charts: {
         weeklyAttendance,
